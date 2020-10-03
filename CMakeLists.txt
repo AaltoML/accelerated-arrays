@@ -7,10 +7,10 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wextra -Wall -pedantic")
 find_package(Threads REQUIRED)
 
 if (NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Release)
+  set(CMAKE_BUILD_TYPE RelWithDebSymbols)
 endif()
 
-add_library(${LIBNAME} src/image.cpp src/cpu_image.cpp)
+add_library(${LIBNAME} src/image.cpp src/function.cpp src/cpu_image.cpp src/cpu_ops.cpp)
 set_target_properties(${LIBNAME} PROPERTIES PUBLIC_HEADER "src/image.hpp;src/cpu_image.hpp")
 target_link_libraries(${LIBNAME} Threads::Threads)
 

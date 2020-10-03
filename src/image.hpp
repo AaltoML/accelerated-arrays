@@ -53,6 +53,17 @@ struct ImageTypeSpec {
 
     template <class T> bool isType() const;
     template <class T> void checkType() const;
+    template <class T> static DataType getType();
+
+    inline bool operator==(const ImageTypeSpec &other) const {
+        return channels == other.channels &&
+            dataType == other.dataType &&
+            storageType == other.storageType;
+    }
+
+    inline bool operator!=(const ImageTypeSpec &other) const {
+        return !(*this == other);
+    }
 };
 
 /**
@@ -78,6 +89,15 @@ struct Image : ImageTypeSpec {
 
     inline std::size_t size() const { return numberOfPixels() * bytesPerPixel(); }
 
+    // border behavior
+    enum class Border {
+        UNDEFINED, // do not allow out-of-bounds reads
+        ZERO,
+        REPEAT,
+        MIRROR,
+        WRAP
+    };
+
     // add some type safety wrappers
     template <class T> std::future<void> read(T *outputData);
     template <class T> std::future<void> write(const T *inputData);
@@ -96,10 +116,11 @@ struct Image : ImageTypeSpec {
     public:
         virtual ~Factory();
         template <class T, int Channels> std::future<std::unique_ptr<Image>> create(int w, int h);
-
-    protected:
+        std::future<std::unique_ptr<Image>> createLike(const Image &image);
         virtual std::future<std::unique_ptr<Image>> create(int w, int h, int channels, DataType dtype) = 0;
     };
+
+    typedef std::function< std::future<void>(std::vector<Image*> &inputs, Image &output) > Function;
 
 protected:
     /** Asynchronous read operation */
@@ -108,6 +129,22 @@ protected:
     virtual std::future<void> writeRaw(const std::uint8_t *inputData) = 0;
 };
 
+#define ACCELERATED_IMAGE_FOR_EACH_TYPE(x) \
+    x(std::uint8_t) \
+    x(std::uint16_t) \
+    x(std::int16_t) \
+    x(std::uint32_t) \
+    x(std::int32_t) \
+    x(float)
+
+#define ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(x) \
+    x(std::uint8_t, ImageTypeSpec::DataType::UINT8) \
+    x(std::uint16_t, ImageTypeSpec::DataType::UINT16) \
+    x(std::int16_t, ImageTypeSpec::DataType::SINT16) \
+    x(std::uint32_t, ImageTypeSpec::DataType::UINT32) \
+    x(std::int32_t, ImageTypeSpec::DataType::SINT32) \
+    x(float, ImageTypeSpec::DataType::FLOAT32)
+
 #define Y(dtype, n) \
     template <> std::future<std::unique_ptr<Image>> Image::Factory::create<dtype, n>(int w, int h)
 #define X(dtype) \
@@ -115,16 +152,12 @@ protected:
     template <> bool ImageTypeSpec::isType<dtype>() const; \
     template <> std::future<void> Image::read(dtype *out); \
     template <> std::future<void> Image::write(const dtype *in); \
+    template <> ImageTypeSpec::DataType ImageTypeSpec::getType<dtype>(); \
     Y(dtype, 1); \
     Y(dtype, 2); \
     Y(dtype, 3); \
     Y(dtype, 4);
-X(std::uint8_t)
-X(std::uint16_t)
-X(std::int16_t)
-X(std::uint32_t)
-X(std::int32_t)
-X(float)
+ACCELERATED_IMAGE_FOR_EACH_TYPE(X)
 #undef X
 #undef Y
 }

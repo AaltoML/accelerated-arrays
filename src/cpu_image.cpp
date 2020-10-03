@@ -1,24 +1,14 @@
 #include "cpu_image.hpp"
 
 namespace accelerated {
-
 namespace {
-ImageTypeSpec getSpec(int channels, ImageTypeSpec::DataType dtype) {
-    return ImageTypeSpec {
-        channels,
-        dtype,
-        ImageTypeSpec::StorageType::CPU
-    };
-}
-}
-
 class CpuImageImplementation final : public CpuImage {
 private:
     std::vector<std::uint8_t> data;
     std::promise<void> instantPromise;
 
     inline int index(int x, int y) const {
-        return (y * width + x) * channels;
+        return (y * width + x) * channels * bytesPerChannel();
     }
 
     std::future<void> instantlyResolved() {
@@ -28,22 +18,36 @@ private:
     }
 
 protected:
-    virtual void get(int x, int y, std::uint8_t *targetArray) const final {
-        const auto offset = index(x, y);
-        for (int i = 0; i < channels; ++i) targetArray[i] = data[i + offset];
+    void get(int x, int y, std::uint8_t *targetArray) const final {
+        const auto bpc = bytesPerChannel();
+        for (int i = 0; i < channels; ++i) get(x, y, i, targetArray + i * bpc);
     }
 
-    virtual void set(int x, int y, const std::uint8_t *srcArray) final {
-        const auto offset = index(x, y);
-        for (int i = 0; i < channels; ++i) data[i + offset] = srcArray[i];
+    void set(int x, int y, const std::uint8_t *srcArray) final {
+        const auto bpc = bytesPerChannel();
+        for (int i = 0; i < channels; ++i) set(x, y, i, srcArray + i * bpc);
     }
 
-    virtual std::future<void> readRaw(std::uint8_t *outputData) final {
+    void get(int x, int y, int channel, std::uint8_t *targetArray) const final {
+        assert(channel >= 0 && channel < channels);
+        const auto bpc = bytesPerChannel();
+        const auto offset = index(x, y) + channel * bpc;
+        for (std::size_t i = 0; i < bpc; ++i) targetArray[i] = data[i + offset];
+    }
+
+    void set(int x, int y, int channel, const std::uint8_t *srcArray) final {
+        assert(channel >= 0 && channel < channels);
+        const auto bpc = bytesPerChannel();
+        const auto offset = index(x, y) + channel * bpc;
+        for (std::size_t i = 0; i < bpc; ++i) data[i + offset] = srcArray[i];
+    }
+
+    std::future<void> readRaw(std::uint8_t *outputData) final {
         std::memcpy(outputData, data.data(), size());
         return instantlyResolved();
     }
 
-    virtual std::future<void> writeRaw(const std::uint8_t *inputData) final {
+    std::future<void> writeRaw(const std::uint8_t *inputData) final {
         std::memcpy(data.data(), inputData, size());
         return instantlyResolved();
     }
@@ -67,6 +71,38 @@ public:
         return p.get_future();
     }
 };
+
+inline bool applyBorder1D(int &i, int size, Image::Border border) {
+    if (i >= 0 && i < size) {
+        return true;
+    }
+    switch (border) {
+    case Image::Border::ZERO:
+        return false;
+    case Image::Border::MIRROR:
+        if (i < 0) i = -i;
+        else if (i >= size) i = size - 1 - (i - (size - 1));
+        assert(i >= 0 && i < size); // multiple mirroring undefined
+        return true;
+    case Image::Border::REPEAT:
+        if (i < 0) i = 0;
+        else if (i >= size) i = size - 1;
+        return true;
+    case Image::Border::WRAP:
+        if (i < 0) i = size - (-i % size);
+        else i = i % size;
+        return true;
+    case Image::Border::UNDEFINED:
+    default:
+        assert(false);
+        return false;
+    }
+}
+}
+
+bool CpuImage::applyBorder(int &x, int &y, Border border) const {
+    return applyBorder1D(x, width, border) && applyBorder1D(y, height, border);
+}
 
 std::unique_ptr<Image::Factory> CpuImage::createFactory() {
     return std::unique_ptr<Image::Factory>(new CpuImageFactory);
