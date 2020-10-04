@@ -56,7 +56,7 @@ namespace fixedConvolution2D {
     };
 
     struct Factory {
-        virtual std::future<Function> create(const Spec &spec, const ImageTypeSpec &imageSpec) = 0;
+        virtual Function create(const Spec &spec, const ImageTypeSpec &imageSpec) = 0;
     };
 }
 

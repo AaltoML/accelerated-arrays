@@ -9,7 +9,7 @@ TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
     using namespace accelerated;
     auto factory = cpu::Image::createFactory();
 
-    auto image = factory->create<std::int16_t, 2>(3, 4).get();
+    auto image = factory->create<std::int16_t, 2>(3, 4);
 
     REQUIRE(image->width == 3);
     REQUIRE(image->height == 4);
@@ -60,9 +60,9 @@ TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
                     { -1, 0, 1 }}, 1/3.0)
                 .setBias(0.5),
             *image
-        ).get();
+        );
 
-    auto outImage = factory->createLike(*image).get();
+    auto outImage = factory->createLike(*image);
     operations::callUnary(convolution, *image, *outImage).get();
 
     auto &outCpu = cpu::Image::castFrom(*outImage);

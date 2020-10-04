@@ -62,14 +62,9 @@ public:
 };
 
 class ImageFactory final : public Image::Factory {
-private:
-    std::promise<std::unique_ptr<::accelerated::Image>> p;
-
 public:
-    std::future<std::unique_ptr<::accelerated::Image>> create(int w, int h, int channels, ImageTypeSpec::DataType dtype) final {
-        p = {};
-        p.set_value(std::unique_ptr<::accelerated::Image>(new ImageImplementation(w, h, channels, dtype)));
-        return p.get_future();
+    std::unique_ptr<::accelerated::Image> create(int w, int h, int channels, ImageTypeSpec::DataType dtype) final {
+        return std::unique_ptr<::accelerated::Image>(new ImageImplementation(w, h, channels, dtype));
     }
 };
 

@@ -6,12 +6,12 @@ namespace accelerated {
 Image::~Image() = default;
 Image::Factory::~Factory() = default;
 
-std::future<std::unique_ptr<Image>> Image::Factory::createLike(const Image &image) {
+std::unique_ptr<Image> Image::Factory::createLike(const Image &image) {
     return create(image.width, image.height, image.channels, image.dataType);
 }
 
 #define Y(dtype, name, n) \
-    template <> std::future<std::unique_ptr<Image>> Image::Factory::create<dtype, n>(int w, int h) \
+    template <> std::unique_ptr<Image> Image::Factory::create<dtype, n>(int w, int h) \
     { return create(w, h, n, name); }
 #define X(dtype, name) \
     template <> bool ImageTypeSpec::isType<dtype>() const { return dataType == name; } \

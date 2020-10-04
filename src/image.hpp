@@ -115,9 +115,9 @@ struct Image : ImageTypeSpec {
     class Factory {
     public:
         virtual ~Factory();
-        template <class T, int Channels> std::future<std::unique_ptr<Image>> create(int w, int h);
-        std::future<std::unique_ptr<Image>> createLike(const Image &image);
-        virtual std::future<std::unique_ptr<Image>> create(int w, int h, int channels, DataType dtype) = 0;
+        template <class T, int Channels> std::unique_ptr<Image> create(int w, int h);
+        std::unique_ptr<Image> createLike(const Image &image);
+        virtual std::unique_ptr<Image> create(int w, int h, int channels, DataType dtype) = 0;
     };
 
     typedef std::function< std::future<void>(std::vector<Image*> &inputs, Image &output) > Function;
@@ -146,7 +146,7 @@ protected:
     x(float, ImageTypeSpec::DataType::FLOAT32)
 
 #define Y(dtype, n) \
-    template <> std::future<std::unique_ptr<Image>> Image::Factory::create<dtype, n>(int w, int h)
+    template <> std::unique_ptr<Image> Image::Factory::create<dtype, n>(int w, int h)
 #define X(dtype) \
     template <> void ImageTypeSpec::checkType<dtype>() const; \
     template <> bool ImageTypeSpec::isType<dtype>() const; \

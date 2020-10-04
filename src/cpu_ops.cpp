@@ -83,13 +83,10 @@ class SyncCpuFactory : public Factory {
 private:
     // not optimal
     std::vector< std::promise<void> > callPromises;
-    std::vector< std::promise<Function> > funcPromises;
 public:
-    std::future<Function> create(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec) final {
+    Function create(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec) final {
         callPromises.push_back({});
-        funcPromises.push_back({});
-        funcPromises.back().set_value(convertChecked(fixedConvolution2D(spec, imageSpec.dataType), imageSpec, callPromises.back()));
-        return funcPromises.back().get_future();
+        return convertChecked(fixedConvolution2D(spec, imageSpec.dataType), imageSpec, callPromises.back());
     }
 };
 }
