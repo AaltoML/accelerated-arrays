@@ -10,7 +10,7 @@ if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebSymbols)
 endif()
 
-add_library(${LIBNAME} src/image.cpp src/function.cpp src/cpu_image.cpp src/cpu_ops.cpp)
+add_library(${LIBNAME} src/image.cpp src/function.cpp src/cpu_image.cpp src/cpu_ops.cpp src/future.cpp)
 set_target_properties(${LIBNAME} PROPERTIES PUBLIC_HEADER "src/image.hpp;src/cpu_image.hpp")
 target_link_libraries(${LIBNAME} Threads::Threads)
 

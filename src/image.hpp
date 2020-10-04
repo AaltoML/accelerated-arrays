@@ -2,12 +2,12 @@
 
 #include <cassert>
 #include <cstdint>
-#include <future>
 #include <memory>
 #include <vector>
 
-namespace accelerated {
+#include "future.hpp"
 
+namespace accelerated {
 struct ImageTypeSpec {
     /**
      * Number of "channels" per pixel. Possible values range from 1 to 4.
@@ -99,15 +99,15 @@ struct Image : ImageTypeSpec {
     };
 
     // add some type safety wrappers
-    template <class T> std::future<void> read(T *outputData);
-    template <class T> std::future<void> write(const T *inputData);
+    template <class T> std::shared_ptr<Future> read(T *outputData);
+    template <class T> std::shared_ptr<Future> write(const T *inputData);
 
-    template <class T> inline std::future<void> read(std::vector<T> &output) {
+    template <class T> inline std::shared_ptr<Future> read(std::vector<T> &output) {
         output.resize(numberOfPixels() * channels);
         return read<T>(output.data());
     }
 
-    template <class T> inline std::future<void> write(const std::vector<T> &input) {
+    template <class T> inline std::shared_ptr<Future> write(const std::vector<T> &input) {
         assert(input.size() == numberOfPixels() * channels);
         return write<T>(input.data());
     }
@@ -120,13 +120,13 @@ struct Image : ImageTypeSpec {
         virtual std::unique_ptr<Image> create(int w, int h, int channels, DataType dtype) = 0;
     };
 
-    typedef std::function< std::future<void>(std::vector<Image*> &inputs, Image &output) > Function;
+    typedef std::function< std::shared_ptr<Future>(std::vector<Image*> &inputs, Image &output) > Function;
 
 protected:
     /** Asynchronous read operation */
-    virtual std::future<void> readRaw(std::uint8_t *outputData) = 0;
+    virtual std::shared_ptr<Future> readRaw(std::uint8_t *outputData) = 0;
     /** Asyncronous write operation */
-    virtual std::future<void> writeRaw(const std::uint8_t *inputData) = 0;
+    virtual std::shared_ptr<Future> writeRaw(const std::uint8_t *inputData) = 0;
 };
 
 #define ACCELERATED_IMAGE_FOR_EACH_TYPE(x) \
@@ -150,8 +150,8 @@ protected:
 #define X(dtype) \
     template <> void ImageTypeSpec::checkType<dtype>() const; \
     template <> bool ImageTypeSpec::isType<dtype>() const; \
-    template <> std::future<void> Image::read(dtype *out); \
-    template <> std::future<void> Image::write(const dtype *in); \
+    template <> std::shared_ptr<Future> Image::read(dtype *out); \
+    template <> std::shared_ptr<Future> Image::write(const dtype *in); \
     template <> ImageTypeSpec::DataType ImageTypeSpec::getType<dtype>(); \
     Y(dtype, 1); \
     Y(dtype, 2); \

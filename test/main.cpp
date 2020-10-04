@@ -25,7 +25,7 @@ TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
         7,0,  0,0,  0,0,
         0,0,  0,8,  0,9
     };
-    image->write(in).get();
+    image->write(in)->wait();
 
     {
         const auto &cpuImg = cpu::Image::castFrom(*image);
@@ -43,7 +43,7 @@ TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
 
     {
         std::vector<std::int16_t> out;
-        image->read(out).get();
+        image->read(out)->wait();
 
         REQUIRE(in.size() == out.size());
         REQUIRE(in.size() == 2*3*4);
@@ -63,7 +63,8 @@ TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
         );
 
     auto outImage = factory->createLike(*image);
-    operations::callUnary(convolution, *image, *outImage).get();
+
+    operations::callUnary(convolution, *image, *outImage)->wait();
 
     auto &outCpu = cpu::Image::castFrom(*outImage);
     REQUIRE(outCpu.get<std::int16_t>(1, 1, 1) == int((-2 + 3*6) / 3.0 + 0.5));

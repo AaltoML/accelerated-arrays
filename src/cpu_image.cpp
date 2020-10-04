@@ -6,16 +6,9 @@ namespace {
 class ImageImplementation final : public Image {
 private:
     std::vector<std::uint8_t> data;
-    std::promise<void> instantPromise;
 
     inline int index(int x, int y) const {
         return (y * width + x) * channels * bytesPerChannel();
-    }
-
-    std::future<void> instantlyResolved() {
-        instantPromise = {};
-        instantPromise.set_value();
-        return instantPromise.get_future();
     }
 
 protected:
@@ -43,14 +36,14 @@ protected:
         for (std::size_t i = 0; i < bpc; ++i) data[i + offset] = srcArray[i];
     }
 
-    std::future<void> readRaw(std::uint8_t *outputData) final {
+    std::shared_ptr<Future> readRaw(std::uint8_t *outputData) final {
         std::memcpy(outputData, data.data(), size());
-        return instantlyResolved();
+        return Future::instantlyResolved();
     }
 
-    std::future<void> writeRaw(const std::uint8_t *inputData) final {
+    std::shared_ptr<Future> writeRaw(const std::uint8_t *inputData) final {
         std::memcpy(data.data(), inputData, size());
-        return instantlyResolved();
+        return Future::instantlyResolved();
     }
 
 public:

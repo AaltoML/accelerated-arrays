@@ -67,26 +67,20 @@ SyncUnary fixedConvolution2D(const FixedConvolution2DSpec &spec, ImageTypeSpec::
     assert(false);
 }
 
-Function convertChecked(const SyncUnary &f, const ImageTypeSpec &imageSpec, std::promise<void> &p) {
+Function convertChecked(const SyncUnary &f, const ImageTypeSpec &imageSpec) {
     checkSpec(imageSpec);
-    return convert([f, &p, imageSpec](BaseImage &input, BaseImage &output) -> std::future<void> {
-        p = {};
-        p.set_value();
+    return convert([f, imageSpec](BaseImage &input, BaseImage &output) -> std::shared_ptr<Future> {
         assert(input == imageSpec);
         assert(output == imageSpec);
         f(Image::castFrom(input), Image::castFrom(output));
-        return p.get_future();
+        return Future::instantlyResolved();
     });
 }
 
 class SyncCpuFactory : public Factory {
-private:
-    // not optimal
-    std::vector< std::promise<void> > callPromises;
 public:
     Function create(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec) final {
-        callPromises.push_back({});
-        return convertChecked(fixedConvolution2D(spec, imageSpec.dataType), imageSpec, callPromises.back());
+        return convertChecked(fixedConvolution2D(spec, imageSpec.dataType), imageSpec);
     }
 };
 }
