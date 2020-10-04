@@ -1,5 +1,4 @@
 #include <cassert>
-#include <future>
 // #include <iostream>
 
 #include "cpu_ops.hpp"
@@ -69,7 +68,7 @@ SyncUnary fixedConvolution2D(const FixedConvolution2DSpec &spec, ImageTypeSpec::
 
 Function convertChecked(const SyncUnary &f, const ImageTypeSpec &imageSpec) {
     checkSpec(imageSpec);
-    return convert([f, imageSpec](BaseImage &input, BaseImage &output) -> std::shared_ptr<Future> {
+    return convert([f, imageSpec](BaseImage &input, BaseImage &output) -> Future {
         assert(input == imageSpec);
         assert(output == imageSpec);
         f(Image::castFrom(input), Image::castFrom(output));

@@ -4,16 +4,22 @@
 
 namespace accelerated {
 
-// This abstraction / packaging of std::future<void> is useful in order to
-// ensure that both the future and its associated promise stay alive
-// as long as necessary. It also simplifies the implementation of
-// syncrhonous operations
+// This aims to conveniently package & abstract the ownership details of
+// std::future (in case of truly asyncrhonous operations) while allowing to
+// implement syncrhonus futures conveniently. Also the smart pointer stuff
+// is encapsulated here for convenience and avoiding the ambiguity with
+// ::get() (smart->raw pointer conversion vs wait for std::future)
 struct Future {
-    virtual ~Future();
+    struct State {
+        virtual ~State();
+        virtual void wait() = 0;
+    };
+    std::shared_ptr<State> state;
+    Future(std::unique_ptr<State> state);
+
     /** Block & wait until the operation is ready */
-    virtual void wait() = 0;
+    void wait();
 
-    static std::unique_ptr<Future> instantlyResolved();
+    static Future instantlyResolved();
 };
-
 }

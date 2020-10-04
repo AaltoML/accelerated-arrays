@@ -36,12 +36,12 @@ protected:
         for (std::size_t i = 0; i < bpc; ++i) data[i + offset] = srcArray[i];
     }
 
-    std::shared_ptr<Future> readRaw(std::uint8_t *outputData) final {
+    Future readRaw(std::uint8_t *outputData) final {
         std::memcpy(outputData, data.data(), size());
         return Future::instantlyResolved();
     }
 
-    std::shared_ptr<Future> writeRaw(const std::uint8_t *inputData) final {
+    Future writeRaw(const std::uint8_t *inputData) final {
         std::memcpy(data.data(), inputData, size());
         return Future::instantlyResolved();
     }

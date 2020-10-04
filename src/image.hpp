@@ -99,15 +99,15 @@ struct Image : ImageTypeSpec {
     };
 
     // add some type safety wrappers
-    template <class T> std::shared_ptr<Future> read(T *outputData);
-    template <class T> std::shared_ptr<Future> write(const T *inputData);
+    template <class T> Future read(T *outputData);
+    template <class T> Future write(const T *inputData);
 
-    template <class T> inline std::shared_ptr<Future> read(std::vector<T> &output) {
+    template <class T> inline Future read(std::vector<T> &output) {
         output.resize(numberOfPixels() * channels);
         return read<T>(output.data());
     }
 
-    template <class T> inline std::shared_ptr<Future> write(const std::vector<T> &input) {
+    template <class T> inline Future write(const std::vector<T> &input) {
         assert(input.size() == numberOfPixels() * channels);
         return write<T>(input.data());
     }
@@ -120,13 +120,13 @@ struct Image : ImageTypeSpec {
         virtual std::unique_ptr<Image> create(int w, int h, int channels, DataType dtype) = 0;
     };
 
-    typedef std::function< std::shared_ptr<Future>(std::vector<Image*> &inputs, Image &output) > Function;
+    typedef std::function< Future(std::vector<Image*> &inputs, Image &output) > Function;
 
 protected:
     /** Asynchronous read operation */
-    virtual std::shared_ptr<Future> readRaw(std::uint8_t *outputData) = 0;
+    virtual Future readRaw(std::uint8_t *outputData) = 0;
     /** Asyncronous write operation */
-    virtual std::shared_ptr<Future> writeRaw(const std::uint8_t *inputData) = 0;
+    virtual Future writeRaw(const std::uint8_t *inputData) = 0;
 };
 
 #define ACCELERATED_IMAGE_FOR_EACH_TYPE(x) \
@@ -150,8 +150,8 @@ protected:
 #define X(dtype) \
     template <> void ImageTypeSpec::checkType<dtype>() const; \
     template <> bool ImageTypeSpec::isType<dtype>() const; \
-    template <> std::shared_ptr<Future> Image::read(dtype *out); \
-    template <> std::shared_ptr<Future> Image::write(const dtype *in); \
+    template <> Future Image::read(dtype *out); \
+    template <> Future Image::write(const dtype *in); \
     template <> ImageTypeSpec::DataType ImageTypeSpec::getType<dtype>(); \
     Y(dtype, 1); \
     Y(dtype, 2); \

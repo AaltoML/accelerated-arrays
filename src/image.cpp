@@ -17,9 +17,9 @@ std::unique_ptr<Image> Image::Factory::createLike(const Image &image) {
     template <> bool ImageTypeSpec::isType<dtype>() const { return dataType == name; } \
     template <> void ImageTypeSpec::checkType<dtype>() const { assert(isType<dtype>()); } \
     template <> ImageTypeSpec::DataType ImageTypeSpec::getType<dtype>() { return name; } \
-    template <> std::shared_ptr<Future> Image::read(dtype *out) \
+    template <> Future Image::read(dtype *out) \
         { assert(isType<dtype>()); return readRaw(reinterpret_cast<std::uint8_t*>(out)); } \
-    template <> std::shared_ptr<Future> Image::write(const dtype *in) \
+    template <> Future Image::write(const dtype *in) \
         { assert(isType<dtype>()); return writeRaw(reinterpret_cast<const std::uint8_t*>(in)); } \
     Y(dtype, name, 1) \
     Y(dtype, name, 2) \
