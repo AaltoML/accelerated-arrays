@@ -66,26 +66,44 @@ SyncUnary fixedConvolution2D(const FixedConvolution2DSpec &spec, ImageTypeSpec::
     assert(false);
 }
 
-Function convertChecked(const SyncUnary &f, const ImageTypeSpec &imageSpec) {
-    checkSpec(imageSpec);
-    return convert([f, imageSpec](BaseImage &input, BaseImage &output) -> Future {
-        assert(input == imageSpec);
-        assert(output == imageSpec);
-        f(Image::castFrom(input), Image::castFrom(output));
-        return Future::instantlyResolved();
-    });
-}
+class CpuFactory : public Factory {
+private:
+    Processor &processor;
 
-class SyncCpuFactory : public Factory {
+    Future processUnary(const SyncUnary &f, BaseImage &input, BaseImage &output) {
+        auto &cpuInput = Image::castFrom(input);
+        auto &cpuOutput = Image::castFrom(output);
+        return processor.enqueue([f, &cpuInput, &cpuOutput] {
+            f(cpuInput, cpuOutput);
+        });
+    }
+
+    Function wrapChecked(const SyncUnary &f, const ImageTypeSpec &imageSpec) {
+        checkSpec(imageSpec);
+        return convert([f, imageSpec, this](BaseImage &input, BaseImage &output) -> Future {
+            assert(input == imageSpec);
+            assert(output == imageSpec);
+            return processUnary(f, input, output);
+        });
+    }
+
 public:
+    CpuFactory(Processor &processor) : processor(processor) {}
+
+    Function wrap(const SyncUnary &f) final {
+        return convert([f, this](BaseImage &input, BaseImage &output) -> Future {
+            return processUnary(f, input, output);
+        });
+    }
+
     Function create(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec) final {
-        return convertChecked(fixedConvolution2D(spec, imageSpec.dataType), imageSpec);
+        return wrapChecked(fixedConvolution2D(spec, imageSpec.dataType), imageSpec);
     }
 };
 }
 
-std::unique_ptr<Factory> createFactory() {
-    return std::unique_ptr<Factory>(new SyncCpuFactory);
+std::unique_ptr<Factory> createFactory(Processor &processor) {
+    return std::unique_ptr<Factory>(new CpuFactory(processor));
 }
 
 }

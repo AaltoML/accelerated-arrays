@@ -51,21 +51,37 @@ TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
             REQUIRE(in[i] == out[i]);
     }
 
-    auto cpuOps = cpu::operations::createFactory();
-    auto convolution = cpuOps->create(
-            operations::fixedConvolution2D::Spec{}
-                .setKernel({
-                    { -1, 0, 1 },
-                    { -3, 0, 3 },
-                    { -1, 0, 1 }}, 1/3.0)
-                .setBias(0.5),
-            *image
-        );
+    std::vector< std::unique_ptr<Processor> > processors;
+    processors.push_back(Processor::createQueue());
+    processors.push_back(Processor::createInstant());
+    processors.push_back(Processor::createThreadPool(1));
+    processors.push_back(Processor::createThreadPool(5));
 
-    auto outImage = factory->createLike(*image);
+    for (std::size_t i = 0; i < processors.size(); ++i) {
+        auto processor = std::move(processors.at(i));
 
-    operations::callUnary(convolution, *image, *outImage).wait();
+        auto cpuOps = cpu::operations::createFactory(*processor);
+        auto convolution = cpuOps->create(
+                operations::fixedConvolution2D::Spec{}
+                    .setKernel({
+                        { -1, 0, 1 },
+                        { -3, 0, 3 },
+                        { -1, 0, 1 }}, 1/3.0)
+                    .setBias(0.5),
+                *image
+            );
 
-    auto &outCpu = cpu::Image::castFrom(*outImage);
-    REQUIRE(outCpu.get<std::int16_t>(1, 1, 1) == int((-2 + 3*6) / 3.0 + 0.5));
+        auto outImage = factory->createLike(*image);
+        auto result = operations::callUnary(convolution, *image, *outImage);
+
+        if (i == 0) {
+            auto &q = reinterpret_cast<Queue&>(*processor);
+            q.processAll();
+        }
+
+        result.wait();
+
+        auto &outCpu = cpu::Image::castFrom(*outImage);
+        REQUIRE(outCpu.get<std::int16_t>(1, 1, 1) == int((-2 + 3*6) / 3.0 + 0.5));
+    }
 }
