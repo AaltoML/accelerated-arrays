@@ -6,14 +6,19 @@
 #include "cpu_image.hpp"
 
 namespace accelerated {
+namespace cpu {
 namespace operations {
 namespace {
+typedef ::accelerated::Image BaseImage;
+typedef ::accelerated::operations::fixedConvolution2D::Spec FixedConvolution2DSpec;
+using ::accelerated::operations::Function;
+using ::accelerated::operations::convert;
 
 void checkSpec(const ImageTypeSpec &spec) {
     assert(spec.storageType == ImageTypeSpec::StorageType::CPU);
 }
 
-/*void forEachPixel(CpuImage &img, const std::function<void(CpuImage &img, int x, int y)> &f) {
+/*void forEachPixel(Image &img, const std::function<void(Image &img, int x, int y)> &f) {
     for (int y = 0; y < img.height; ++y) {
         for (int x = 0; x < img.width; ++x) {
             f(img, x, y);
@@ -21,7 +26,7 @@ void checkSpec(const ImageTypeSpec &spec) {
     }
 }*/
 
-void forEachPixelAndChannel(CpuImage &img, const std::function<void(CpuImage &img, int x, int y, int c)> &f) {
+void forEachPixelAndChannel(Image &img, const std::function<void(Image &img, int x, int y, int c)> &f) {
     for (int y = 0; y < img.height; ++y) {
         for (int x = 0; x < img.width; ++x) {
             for (int c = 0; c < img.channels; ++c) {
@@ -31,13 +36,13 @@ void forEachPixelAndChannel(CpuImage &img, const std::function<void(CpuImage &im
     }
 }
 
-template <class T> Cpu::SyncUnary fixedConvolution2D(const FixedConvolution2D::Spec &spec) {
+template <class T> SyncUnary fixedConvolution2D(const FixedConvolution2DSpec &spec) {
     assert(!spec.kernel.empty());
-    return [spec](const CpuImage &input, CpuImage &output) {
+    return [spec](const Image &input, Image &output) {
         const int kernelYOffset = -(spec.kernel.size() / 2) + spec.yOffset;
         const int kernelXOffset = -(spec.kernel.at(0).size() / 2) + spec.xOffset;
         // std::cout << spec.kernel.size() << " " << spec.kernel.at(0).size() << std::endl;
-        forEachPixelAndChannel(output, [kernelYOffset, kernelXOffset, &spec, &input](CpuImage &output, int x, int y, int c) {
+        forEachPixelAndChannel(output, [kernelYOffset, kernelXOffset, &spec, &input](Image &output, int x, int y, int c) {
             double v = spec.bias;
             for (int i = 0; i < int(spec.kernel.size()); ++i) {
                 const int y1 = y * spec.yStride + i + kernelYOffset;
@@ -55,32 +60,32 @@ template <class T> Cpu::SyncUnary fixedConvolution2D(const FixedConvolution2D::S
     };
 }
 
-Cpu::SyncUnary fixedConvolution2D(const FixedConvolution2D::Spec &spec, ImageTypeSpec::DataType dataType) {
+SyncUnary fixedConvolution2D(const FixedConvolution2DSpec &spec, ImageTypeSpec::DataType dataType) {
     #define X(dtype) if (dataType == ImageTypeSpec::getType<dtype>()) return fixedConvolution2D<dtype>(spec);
     ACCELERATED_IMAGE_FOR_EACH_TYPE(X)
     #undef X
     assert(false);
 }
 
-Function convertChecked(const Cpu::SyncUnary &f, const ImageTypeSpec &imageSpec, std::promise<void> &p) {
+Function convertChecked(const SyncUnary &f, const ImageTypeSpec &imageSpec, std::promise<void> &p) {
     checkSpec(imageSpec);
-    return convert([f, &p, imageSpec](Image &input, Image &output) -> std::future<void> {
+    return convert([f, &p, imageSpec](BaseImage &input, BaseImage &output) -> std::future<void> {
         p = {};
         p.set_value();
         assert(input == imageSpec);
         assert(output == imageSpec);
-        f(CpuImage::castFrom(input), CpuImage::castFrom(output));
+        f(Image::castFrom(input), Image::castFrom(output));
         return p.get_future();
     });
 }
 
-class SyncCpuImplementation : public Cpu {
+class SyncCpuFactory : public Factory {
 private:
     // not optimal
     std::vector< std::promise<void> > callPromises;
     std::vector< std::promise<Function> > funcPromises;
 public:
-    std::future<Function> create(const FixedConvolution2D::Spec &spec, const ImageTypeSpec &imageSpec) final {
+    std::future<Function> create(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec) final {
         callPromises.push_back({});
         funcPromises.push_back({});
         funcPromises.back().set_value(convertChecked(fixedConvolution2D(spec, imageSpec.dataType), imageSpec, callPromises.back()));
@@ -89,9 +94,10 @@ public:
 };
 }
 
-std::unique_ptr<Cpu> Cpu::createFactory() {
-    return std::unique_ptr<Cpu>(new SyncCpuImplementation);
+std::unique_ptr<Factory> createFactory() {
+    return std::unique_ptr<Factory>(new SyncCpuFactory);
 }
 
+}
 }
 }

@@ -8,7 +8,7 @@ namespace accelerated {
 namespace operations {
 
 // fixed-kernel 2D convolution
-namespace FixedConvolution2D {
+namespace fixedConvolution2D {
     struct Spec {
         // double can be losslesly converted to any of (u)int8/16/32 or float
         std::vector< std::vector<double> > kernel;
@@ -60,7 +60,7 @@ namespace FixedConvolution2D {
     };
 }
 
-struct StandardFactory : FixedConvolution2D::Factory
+struct StandardFactory : fixedConvolution2D::Factory
 {
     virtual ~StandardFactory() = default;
 };

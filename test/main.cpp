@@ -7,7 +7,7 @@
 
 TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
     using namespace accelerated;
-    auto factory = CpuImage::createFactory();
+    auto factory = cpu::Image::createFactory();
 
     auto image = factory->create<std::int16_t, 2>(3, 4).get();
 
@@ -28,7 +28,7 @@ TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
     image->write(in).get();
 
     {
-        const auto &cpuImg = CpuImage::castFrom(*image);
+        const auto &cpuImg = cpu::Image::castFrom(*image);
         REQUIRE(cpuImg.get<std::int16_t>(2, 0, 0) == 5);
         REQUIRE(cpuImg.get<std::int16_t>(2, 1, 1) == 6);
         REQUIRE(cpuImg.get<std::int16_t>(3, 0, 0, Image::Border::REPEAT) == 5);
@@ -51,9 +51,9 @@ TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
             REQUIRE(in[i] == out[i]);
     }
 
-    auto cpuOps = operations::Cpu::createFactory();
+    auto cpuOps = cpu::operations::createFactory();
     auto convolution = cpuOps->create(
-            operations::FixedConvolution2D::Spec{}
+            operations::fixedConvolution2D::Spec{}
                 .setKernel({
                     { -1, 0, 1 },
                     { -3, 0, 3 },
@@ -65,6 +65,6 @@ TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
     auto outImage = factory->createLike(*image).get();
     operations::callUnary(convolution, *image, *outImage).get();
 
-    auto &outCpu = CpuImage::castFrom(*outImage);
+    auto &outCpu = cpu::Image::castFrom(*outImage);
     REQUIRE(outCpu.get<std::int16_t>(1, 1, 1) == int((-2 + 3*6) / 3.0 + 0.5));
 }

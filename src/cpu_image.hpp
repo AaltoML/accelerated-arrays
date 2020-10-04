@@ -7,9 +7,8 @@
 #include <cstring>
 
 namespace accelerated {
-
-// CpuImage "reference implementation"
-class CpuImage : public Image {
+namespace cpu {
+class Image : public ::accelerated::Image {
 public:
     template<class T, std::size_t N> std::array<T, N> get(int x, int y) const {
         checkType<T>();
@@ -66,12 +65,12 @@ public:
         return get<T>(x, y);
     }
 
-    static CpuImage &castFrom(Image &image) {
+    static Image &castFrom(::accelerated::Image &image) {
         assert(image.storageType == StorageType::CPU);
-        return reinterpret_cast<CpuImage&>(image);
+        return reinterpret_cast<Image&>(image);
     }
 
-    static std::unique_ptr<Image::Factory> createFactory();
+    static std::unique_ptr<Factory> createFactory();
 
     template <class T> static ImageTypeSpec getSpec(int channels) {
         return getSpec(channels, ImageTypeSpec::getType<T>());
@@ -92,11 +91,12 @@ protected:
         };
     }
 
-    CpuImage(int w, int h, int channels, DataType dtype);
+    Image(int w, int h, int channels, DataType dtype);
 
     virtual void get(int x, int y, std::uint8_t *targetArray) const = 0;
     virtual void set(int x, int y, const std::uint8_t *srcArray) = 0;
     virtual void get(int x, int y, int channel, std::uint8_t *targetArray) const = 0;
     virtual void set(int x, int y, int channel, const std::uint8_t *srcArray) = 0;
 };
+}
 }

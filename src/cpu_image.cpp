@@ -1,8 +1,9 @@
 #include "cpu_image.hpp"
 
 namespace accelerated {
+namespace cpu {
 namespace {
-class CpuImageImplementation final : public CpuImage {
+class ImageImplementation final : public Image {
 private:
     std::vector<std::uint8_t> data;
     std::promise<void> instantPromise;
@@ -53,21 +54,21 @@ protected:
     }
 
 public:
-    CpuImageImplementation(int w, int h, int channels, DataType dtype) :
-        CpuImage(w, h, channels, dtype)
+    ImageImplementation(int w, int h, int channels, DataType dtype) :
+        Image(w, h, channels, dtype)
     {
         data.resize(size());
     }
 };
 
-class CpuImageFactory final : public Image::Factory {
+class ImageFactory final : public Image::Factory {
 private:
-    std::promise<std::unique_ptr<Image>> p;
+    std::promise<std::unique_ptr<::accelerated::Image>> p;
 
 public:
-    std::future<std::unique_ptr<Image>> create(int w, int h, int channels, ImageTypeSpec::DataType dtype) final {
+    std::future<std::unique_ptr<::accelerated::Image>> create(int w, int h, int channels, ImageTypeSpec::DataType dtype) final {
         p = {};
-        p.set_value(std::unique_ptr<Image>(new CpuImageImplementation(w, h, channels, dtype)));
+        p.set_value(std::unique_ptr<::accelerated::Image>(new ImageImplementation(w, h, channels, dtype)));
         return p.get_future();
     }
 };
@@ -100,14 +101,15 @@ inline bool applyBorder1D(int &i, int size, Image::Border border) {
 }
 }
 
-bool CpuImage::applyBorder(int &x, int &y, Border border) const {
+bool Image::applyBorder(int &x, int &y, Border border) const {
     return applyBorder1D(x, width, border) && applyBorder1D(y, height, border);
 }
 
-std::unique_ptr<Image::Factory> CpuImage::createFactory() {
-    return std::unique_ptr<Image::Factory>(new CpuImageFactory);
+std::unique_ptr<Image::Factory> Image::createFactory() {
+    return std::unique_ptr<Image::Factory>(new ImageFactory);
 }
 
-CpuImage::CpuImage(int w, int h, int ch, DataType dtype) : Image(w, h, getSpec(ch, dtype)) {}
+Image::Image(int w, int h, int ch, DataType dtype) : ::accelerated::Image(w, h, getSpec(ch, dtype)) {}
 
+}
 }
