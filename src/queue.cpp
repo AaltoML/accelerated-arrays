@@ -23,36 +23,35 @@ private:
 
     std::deque< Task > tasks;
     std::mutex mutex;
-    std::condition_variable emptyCondition, pendingCondition;
+    std::condition_variable emptyCondition, subscribeCondition;
     bool shouldQuit = false;
-    int nPending = 0;
+    int nSubscribed = 0;
 
     bool process(bool many, bool waitForData) {
-        Task task;
         bool any = false;
+        std::unique_lock<std::mutex> lock(mutex);
+        nSubscribed++;
+        subscribeCondition.notify_all();
         do {
-            {
-                std::unique_lock<std::mutex> lock(mutex);
-                if (waitForData) emptyCondition.wait(lock, [this] {
-                    return shouldQuit || !tasks.empty();
-                });
-                if (shouldQuit || tasks.empty()) {
-                    break;
-                }
-                task = std::move(tasks.front());
-                tasks.pop_front();
-                if (many) nPending++;
+            if (waitForData) emptyCondition.wait(lock, [this] {
+                return shouldQuit || !tasks.empty();
+            });
+            if (shouldQuit || tasks.empty()) {
+                break;
             }
+            auto task = std::move(tasks.front());
+            tasks.pop_front();
+            lock.unlock();
+
             task.func();
             task.promise->resolve();
             any = true;
-            if (many) {
-                std::unique_lock<std::mutex> lock(mutex);
-                nPending--;
-                pendingCondition.notify_all();
-                if (shouldQuit) break;
-            }
+
+            lock.lock();
         } while (many);
+
+        nSubscribed--;
+        subscribeCondition.notify_all();
         return any;
     }
 
@@ -62,8 +61,8 @@ public:
         shouldQuit = true;
         emptyCondition.notify_all();
 
-        pendingCondition.wait(lock, [this] {
-            return nPending == 0;
+        subscribeCondition.wait(lock, [this] {
+            return nSubscribed == 0;
         });
     }
 
@@ -72,12 +71,21 @@ public:
         task.promise = Promise::create();
         auto future = task.promise->getFuture();
         task.func = op;
+
         {
             std::lock_guard<std::mutex> lock(mutex);
             tasks.emplace_back(std::move(task));
+            emptyCondition.notify_one();
         }
-        emptyCondition.notify_one();
         return future;
+    }
+
+    void waitUntilNSubscribed(int n) {
+        // hacky
+        std::unique_lock<std::mutex> lock(mutex);
+        subscribeCondition.wait(lock, [this, n] {
+            return nSubscribed == n;
+        });
     }
 
     bool processOne() final { return process(false, false); }
@@ -89,7 +97,7 @@ public:
 struct ThreadPool : Processor {
 private:
     std::vector< std::thread > pool;
-    std::unique_ptr<BlockingQueue> queue;
+    std::unique_ptr<QueueImplementation> queue;
 
     void work() {
         queue->processUntilDestroyed();
@@ -97,6 +105,7 @@ private:
 
 public:
     ~ThreadPool() {
+        queue->waitUntilNSubscribed(pool.size());
         queue.reset();
         for (auto &thread : pool) thread.join();
     }
