@@ -1,4 +1,4 @@
-#include "cpu_image.hpp"
+#include "image.hpp"
 
 namespace accelerated {
 namespace cpu {
@@ -98,6 +98,14 @@ inline bool applyBorder1D(int &i, int size, Image::Border border) {
 
 bool Image::applyBorder(int &x, int &y, Border border) const {
     return applyBorder1D(x, width, border) && applyBorder1D(y, height, border);
+}
+
+ImageTypeSpec Image::getSpec(int channels, DataType dtype) {
+    return ImageTypeSpec {
+        channels,
+        dtype,
+        ImageTypeSpec::StorageType::CPU
+    };
 }
 
 std::unique_ptr<Image::Factory> Image::createFactory(Processor &p) {

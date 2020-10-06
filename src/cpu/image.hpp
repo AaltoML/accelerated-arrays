@@ -1,6 +1,6 @@
 #pragma once
 
-#include "image.hpp"
+#include "../image.hpp"
 
 #include <array>
 #include <cassert>
@@ -83,13 +83,7 @@ public:
 protected:
     bool applyBorder(int &x, int &y, Border border) const;
 
-    static ImageTypeSpec getSpec(int channels, DataType dtype) {
-        return ImageTypeSpec {
-            channels,
-            dtype,
-            ImageTypeSpec::StorageType::CPU
-        };
-    }
+    static ImageTypeSpec getSpec(int channels, DataType dtype);
 
     Image(int w, int h, int channels, DataType dtype);
 

@@ -1,8 +1,8 @@
 #include <cassert>
 // #include <iostream>
 
-#include "cpu_ops.hpp"
-#include "cpu_image.hpp"
+#include "operations.hpp"
+#include "image.hpp"
 
 namespace accelerated {
 namespace cpu {

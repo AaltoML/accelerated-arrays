@@ -11,13 +11,13 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 add_library(${LIBNAME}
-  src/image.cpp
-  src/function.cpp
-  src/cpu_image.cpp
-  src/cpu_ops.cpp
+  src/cpu/image.cpp
+  src/cpu/operations.cpp
   src/future.cpp
+  src/function.cpp
+  src/image.cpp
   src/queue.cpp)
-set_target_properties(${LIBNAME} PROPERTIES PUBLIC_HEADER "src/image.hpp;src/cpu_image.hpp")
+# TODO: public header part
 target_link_libraries(${LIBNAME} Threads::Threads)
 
 install(TARGETS ${LIBNAME}

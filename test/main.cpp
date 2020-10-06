@@ -2,8 +2,8 @@
 #define CATCH_CONFIG_MAIN
 
 #include <catch2/catch.hpp>
-#include "cpu_image.hpp"
-#include "cpu_ops.hpp"
+#include "cpu/image.hpp"
+#include "cpu/operations.hpp"
 
 TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
     using namespace accelerated;
