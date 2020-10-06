@@ -70,7 +70,7 @@ public:
         return reinterpret_cast<Image&>(image);
     }
 
-    static std::unique_ptr<Factory> createFactory();
+    static std::unique_ptr<Factory> createFactory(Processor &processor);
 
     template <class T> static ImageTypeSpec getSpec(int channels) {
         return getSpec(channels, ImageTypeSpec::getType<T>());

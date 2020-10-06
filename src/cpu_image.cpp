@@ -6,6 +6,7 @@ namespace {
 class ImageImplementation final : public Image {
 private:
     std::vector<std::uint8_t> data;
+    Processor &processor;
 
     inline int index(int x, int y) const {
         return (y * width + x) * channels * bytesPerChannel();
@@ -37,27 +38,33 @@ protected:
     }
 
     Future readRaw(std::uint8_t *outputData) final {
-        std::memcpy(outputData, data.data(), size());
-        return Future::instantlyResolved();
+        return processor.enqueue([this, outputData]() {
+            std::memcpy(outputData, data.data(), size());
+        });
     }
 
     Future writeRaw(const std::uint8_t *inputData) final {
-        std::memcpy(data.data(), inputData, size());
-        return Future::instantlyResolved();
+        return processor.enqueue([this, inputData]() {
+            std::memcpy(data.data(), inputData, size());
+        });
     }
 
 public:
-    ImageImplementation(int w, int h, int channels, DataType dtype) :
-        Image(w, h, channels, dtype)
+    ImageImplementation(int w, int h, int channels, DataType dtype, Processor &p) :
+        Image(w, h, channels, dtype), processor(p)
     {
         data.resize(size());
     }
 };
 
 class ImageFactory final : public Image::Factory {
+private:
+    Processor &processor;
 public:
+    ImageFactory(Processor &p) : processor(p) {}
+
     std::unique_ptr<::accelerated::Image> create(int w, int h, int channels, ImageTypeSpec::DataType dtype) final {
-        return std::unique_ptr<::accelerated::Image>(new ImageImplementation(w, h, channels, dtype));
+        return std::unique_ptr<::accelerated::Image>(new ImageImplementation(w, h, channels, dtype, processor));
     }
 };
 
@@ -93,8 +100,8 @@ bool Image::applyBorder(int &x, int &y, Border border) const {
     return applyBorder1D(x, width, border) && applyBorder1D(y, height, border);
 }
 
-std::unique_ptr<Image::Factory> Image::createFactory() {
-    return std::unique_ptr<Image::Factory>(new ImageFactory);
+std::unique_ptr<Image::Factory> Image::createFactory(Processor &p) {
+    return std::unique_ptr<Image::Factory>(new ImageFactory(p));
 }
 
 Image::Image(int w, int h, int ch, DataType dtype) : ::accelerated::Image(w, h, getSpec(ch, dtype)) {}
