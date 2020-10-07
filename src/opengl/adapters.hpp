@@ -13,10 +13,10 @@
 #include <cstdio>
 // ## is a "gcc" hack for allowing empty __VA_ARGS__
 // https://stackoverflow.com/questions/5891221/variadic-macros-with-zero-arguments
-#define log_debug(fmt, ...) ((void)printf(fmt" (debug)\n", ## __VA_ARGS__))
-#define log_info(fmt, ...) ((void)printf(fmt" (info)\n", ## __VA_ARGS__))
-#define log_warn(fmt, ...) ((void)printf(fmt" (warn)\n", ## __VA_ARGS__))
-#define log_error(fmt, ...) ((void)printf(fmt" (error)\n", ## __VA_ARGS__))
+#define log_debug(...) do { std::printf("DEBUG: "); std::printf(__VA_ARGS__); std::printf("\n"); } while (0)
+#define log_info(...) do { std::printf("INFO: "); std::printf(__VA_ARGS__); std::printf("\n"); } while (0)
+#define log_warn(...) do { std::fprintf(stderr, "WARN: "); std::fprintf(stderr, ## __VA_ARGS__); std::fprintf(stderr, "\n"); } while (0)
+#define log_error(...) do { std::fprintf(stderr, "ERROR: "); std::fprintf(stderr, ## __VA_ARGS__); std::fprintf(stderr, "\n"); } while (0)
 #endif
 
 namespace accelerated {
@@ -65,7 +65,7 @@ struct FrameBuffer : Binder::Target {
     virtual void readPixels(uint8_t *pixels) = 0;
     virtual void writePixels(const uint8_t *pixels) = 0;
 
-    // virtual int getId() const = 0;
+    virtual int getId() const = 0;
     virtual int getTextureId() const = 0;
 
 };

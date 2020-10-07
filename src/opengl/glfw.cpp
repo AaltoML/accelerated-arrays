@@ -33,8 +33,8 @@ struct GLFWProcessor : Processor {
     Future enqueue(const std::function<void()> &op) final {
         return thread->enqueue([this, op]() {
             assert(window);
+            // log_debug("op in GL thread");
             // not which of these are really required
-            log_debug("op in GL thread");
             glfwMakeContextCurrent(window);
             op();
             glfwPollEvents();

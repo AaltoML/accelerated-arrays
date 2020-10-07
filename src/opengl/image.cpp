@@ -5,6 +5,13 @@
 #include "adapters.hpp"
 #include "image.hpp"
 
+//#define ACCELERATED_ARRAYS_DEBUG_IMAGE
+#ifdef ACCELERATED_ARRAYS_DEBUG_IMAGE
+#define LOG_TRACE(...) log_debug(__VA_ARGS__)
+#else
+#define LOG_TRACE(...) (void)0
+#endif
+
 namespace accelerated {
 namespace opengl {
 namespace {
@@ -53,7 +60,10 @@ public:
             std::shared_ptr<FrameBuffer> buf;
             {
                 std::lock_guard<std::mutex> lock(mutex);
-                if (!frameBuffers.count(ref)) return;
+                if (!frameBuffers.count(ref)) {
+                    log_warn("no reference %p found in enqueue (already destroyed?)", (void*)ref);
+                    return;
+                }
                 buf = frameBuffers.at(ref);
             }
             f(*buf);
@@ -65,7 +75,8 @@ public:
             auto fb = builder();
             {
                 std::lock_guard<std::mutex> lock(mutex);
-                if (!frameBuffers.count(ref)) return;
+                assert(!frameBuffers.count(ref));
+                LOG_TRACE("frame buffer for reference %p set to %d", (void*)ref, fb->getId());
                 frameBuffers[ref] = std::move(fb);
             }
         });
@@ -75,13 +86,17 @@ public:
         std::shared_ptr<FrameBuffer> buf;
         {
             std::lock_guard<std::mutex> lock(mutex);
-            if (!frameBuffers.count(ref)) return;
+            if (!frameBuffers.count(ref)) {
+                log_warn("no reference %p found in removeFrameBuffer (already destroyed?)", (void*)ref);
+                return;
+            }
             buf = frameBuffers.at(ref);
             frameBuffers.erase(ref);
         }
 
-        processor.enqueue([buf]() {
+        processor.enqueue([buf, ref]() {
             buf->destroy();
+            LOG_TRACE("frame buffer for reference %p destroyed", (void*)ref);
         });
     }
 
@@ -104,12 +119,14 @@ private:
 public:
     Reference(int w, int h, const ImageTypeSpec &spec, FrameBufferManager &m) : Image(w, h, spec), manager(m) {
         ImageTypeSpec s = spec;
+        LOG_TRACE("created buffer reference %p", (void*)this);
         manager.addFrameBuffer(this, [w, h, s]() {
             return FrameBuffer::create(w, h, s);
         });
     }
 
     ~Reference() {
+        LOG_TRACE("destroyed buffer reference %p", (void*)this);
         manager.removeFrameBuffer(this);
     }
 
@@ -120,6 +137,7 @@ public:
 
     Future readRaw(std::uint8_t *outputData) final {
         assert(supportsReadAndWrite());
+        LOG_TRACE("reading frame buffer reference %p", (void*)this);
         return manager.enqueue(this, [outputData](FrameBuffer &fb) {
             fb.readPixels(outputData);
         });
@@ -127,15 +145,18 @@ public:
 
     Future writeRaw(const std::uint8_t *inputData) final {
         assert(supportsReadAndWrite());
+        LOG_TRACE("writing frame buffer reference %p", (void*)this);
         return manager.enqueue(this, [inputData](FrameBuffer &fb) {
             fb.writePixels(inputData);
         });
     }
 
     bool supportsReadAndWrite() const final {
-        // at least in OpenGL ES, only a limited subset of textures
-        // support reading & writing directly
+        // TODO: in OpenGL ES, only a limited subset of textures
+        // support reading & writing directly, but this is not the case in
+        // general in OpenGL
         return dataType == DataType::UINT8 && channels == 4;
+        // return true;
     }
 };
 

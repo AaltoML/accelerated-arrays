@@ -29,4 +29,18 @@ ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(X)
 #undef X
 #undef Y
 
+std::size_t ImageTypeSpec::bytesPerChannel() const {
+    switch (dataType) {
+        case DataType::UINT8: return 1;
+        case DataType::SINT8: return 1;
+        case DataType::UINT16: return 2;
+        case DataType::SINT16: return 2;
+        case DataType::UINT32: return 4;
+        case DataType::SINT32: return 4;
+        case DataType::FLOAT32: return 4;
+    }
+    assert(false && "invalid data type");
+    return 0;
+}
+
 }

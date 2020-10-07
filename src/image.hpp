@@ -19,6 +19,7 @@ struct ImageTypeSpec {
     /** Channel data type */
     const enum class DataType {
         UINT8,
+        SINT8,
         // TODO: should specify big vs little endian
         UINT16,
         SINT16,
@@ -36,18 +37,7 @@ struct ImageTypeSpec {
         GPU_OPENGL_EXTERNAL
     } storageType;
 
-    inline std::size_t bytesPerChannel() const {
-        switch (dataType) {
-            case DataType::UINT8: return 1;
-            case DataType::UINT16: return 2;
-            case DataType::SINT16: return 2;
-            case DataType::UINT32: return 4;
-            case DataType::SINT32: return 4;
-            case DataType::FLOAT32: return 4;
-        }
-        assert(false && "invalid data type");
-        return 0;
-    }
+    std::size_t bytesPerChannel() const;
 
     inline std::size_t bytesPerPixel() const { return bytesPerChannel() * channels; }
 
@@ -131,6 +121,7 @@ protected:
 
 #define ACCELERATED_IMAGE_FOR_EACH_TYPE(x) \
     x(std::uint8_t) \
+    x(std::int8_t) \
     x(std::uint16_t) \
     x(std::int16_t) \
     x(std::uint32_t) \
@@ -139,6 +130,7 @@ protected:
 
 #define ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(x) \
     x(std::uint8_t, ImageTypeSpec::DataType::UINT8) \
+    x(std::int8_t, ImageTypeSpec::DataType::SINT8) \
     x(std::uint16_t, ImageTypeSpec::DataType::UINT16) \
     x(std::int16_t, ImageTypeSpec::DataType::SINT16) \
     x(std::uint32_t, ImageTypeSpec::DataType::UINT32) \

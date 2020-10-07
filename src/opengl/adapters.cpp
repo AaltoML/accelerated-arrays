@@ -3,6 +3,13 @@
 #include "adapters.hpp"
 #include "../image.hpp"
 
+//#define ACCELERATED_ARRAYS_DEBUG_ADAPTERS
+#ifdef ACCELERATED_ARRAYS_DEBUG_ADAPTERS
+#define LOG_TRACE(...) log_debug(__VA_ARGS__)
+#else
+#define LOG_TRACE(...) (void)0
+#endif
+
 namespace accelerated {
 namespace opengl {
 void checkError(const char *tag) {
@@ -31,43 +38,64 @@ struct Texture : Binder::Target {
 
 namespace {
 int getInternalFormat(const ImageTypeSpec &spec) {
-    assert(spec.dataType == ImageTypeSpec::DataType::UINT8);
+    // TODO: fill in rest https://www.khronos.org/registry/OpenGL-Refpages/es3.0/html/glTexImage2D.xhtml
+
+    #define X(x) LOG_TRACE("getInternalFormat:%s", #x); return x
     if (spec.channels == 1) {
-        // log_debug("getInternalFormat:GL_R8");
-        return GL_R8;
+        switch (spec.dataType) {
+            case ImageTypeSpec::DataType::UINT8: X(GL_R8);
+            case ImageTypeSpec::DataType::SINT8: X(GL_R8_SNORM);
+            default: break;
+        }
     }
     else if (spec.channels == 4) {
-        // log_debug("getInternalFormat:GL_RGBA");
-        return GL_RGBA;
+        switch (spec.dataType) {
+            case ImageTypeSpec::DataType::UINT8: X(GL_RGBA); // note: unsized default
+            case ImageTypeSpec::DataType::SINT8: X(GL_RGBA8_SNORM);
+            default: break;
+        }
     }
-    // TODO
+    #undef X
     assert(false && "not implemented");
     return -1;
 }
 
 int getFormat(const ImageTypeSpec &spec) {
-    if (spec.channels == 1) {
-        // log_debug("getFormat:GL_RED");
-        return GL_RED;
+    #define X(x) LOG_TRACE("getFormat:%s", #x); return x
+    switch (spec.channels) {
+        case 1: X(GL_RED);
+        case 2: assert(false && "not implemented"); return -1;
+        case 3: X(GL_RGB); // TODO: check
+        case 4: X(GL_RGBA);
+        default: break;
     }
-    else if (spec.channels == 3) {
-        // log_debug("getFormat:GL_RGB");
-        return GL_RGB; // TODO: check
+    #undef X
+    assert(false);
+    return -1;
+}
+
+int getCpuType(const ImageTypeSpec &spec) {
+    #define X(x) LOG_TRACE("getFormat:%s", #x); return x
+    switch (spec.dataType) {
+        case ImageTypeSpec::DataType::UINT8: X(GL_UNSIGNED_BYTE);
+        case ImageTypeSpec::DataType::SINT8: X(GL_BYTE);
+        case ImageTypeSpec::DataType::UINT16: X(GL_UNSIGNED_SHORT);
+        case ImageTypeSpec::DataType::SINT16: X(GL_SHORT);
+        case ImageTypeSpec::DataType::UINT32: X(GL_UNSIGNED_INT);
+        case ImageTypeSpec::DataType::SINT32: X(GL_INT);
+        case ImageTypeSpec::DataType::FLOAT32: X(GL_FLOAT);
     }
-    else if (spec.channels == 4) {
-        // log_debug("getFormat:GL_RGBA");
-        return GL_RGBA;
-    }
-    assert(false && "not implemented");
+    #undef X
+    assert(false);
     return -1;
 }
 
 int getBindType(const ImageTypeSpec &spec) {
     if (spec.storageType == ImageTypeSpec::StorageType::GPU_OPENGL) {
-        // log_debug("getBindType:GL_TEXTURE_2D");
+        LOG_TRACE("getBindType:GL_TEXTURE_2D");
         return GL_TEXTURE_2D;
     } else if (spec.storageType == ImageTypeSpec::StorageType::GPU_OPENGL_EXTERNAL) {
-        // log_debug("getBindType:GL_TEXTURE_EXTERNAL_OES");
+        LOG_TRACE("getBindType:GL_TEXTURE_EXTERNAL_OES");
         return GL_TEXTURE_EXTERNAL_OES;
     }
     assert(false);
@@ -83,9 +111,9 @@ public:
     TextureImplementation(int width, int height, const ImageTypeSpec &spec)
     : bindType(getBindType(spec)), id(0) {
         glGenTextures(1, &id);
-        log_debug("created texture %d of size %d x %d x %d", id, width, height, spec.channels);
+        LOG_TRACE("created texture %d of size %d x %d x %d", id, width, height, spec.channels);
 
-        //glActiveTexture(GL_TEXTURE0); // TODO: required?
+        // glActiveTexture(GL_TEXTURE0); // TODO: required?
 
         Binder binder(*this);
         glTexImage2D(GL_TEXTURE_2D, 0,
@@ -94,15 +122,16 @@ public:
             getFormat(spec),
             GL_UNSIGNED_BYTE, nullptr);
 
-        //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        // TODO: move somewhere else
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
         checkError(__FUNCTION__);
     }
 
     void destroy() final {
         if (id != 0) {
-            log_debug("deleting texture %d", id);
+            LOG_TRACE("deleting texture %d", id);
             glDeleteTextures(1, &id);
         }
         id = 0;
@@ -116,13 +145,13 @@ public:
 
     void bind() final {
         glBindTexture(bindType, id);
-        log_debug("bound texture %d", id);
+        LOG_TRACE("bound texture %d", id);
         checkError(__FUNCTION__);
     }
 
     void unbind() final {
         glBindTexture(bindType, 0);
-        log_debug("unbound texture");
+        LOG_TRACE("unbound texture");
         checkError(__FUNCTION__);
     }
 
@@ -140,7 +169,7 @@ public:
     FrameBufferImplementation(int w, int h, const ImageTypeSpec &spec)
     : width(w), height(h), spec(spec), id(0), texture(w, h, spec) {
         glGenFramebuffers(1, &id);
-        log_debug("generated frame buffer %d", id);
+        LOG_TRACE("generated frame buffer %d", id);
         checkError(std::string(__FUNCTION__) + "/glGenFramebuffers");
 
         assert(spec.storageType == Image::StorageType::GPU_OPENGL);
@@ -155,7 +184,7 @@ public:
 
     void destroy() final {
         if (id != 0) {
-            log_debug("destroying frame buffer %d", id);
+            LOG_TRACE("destroying frame buffer %d", id);
             glDeleteFramebuffers(1, &id);
         }
         id = 0;
@@ -169,30 +198,39 @@ public:
     }
 
     void bind() final {
+        LOG_TRACE("bound frame buffer %d", id);
         glBindFramebuffer(GL_FRAMEBUFFER, id);
         checkError(__FUNCTION__);
     }
 
     void unbind() final {
+        LOG_TRACE("unbound frame buffer");
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         checkError(__FUNCTION__);
     }
 
     void readPixels(uint8_t *pixels) final {
-        // OpenGL ES only supports GL_RGBA / GL_UNSIGNED_BYTE (in practice)
-        Binder(*this);
-        assert(spec.channels == 4 && spec.dataType == Image::DataType::UINT8);
-        glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        LOG_TRACE("reading frame buffer %d", id);
+        Binder binder(*this);
+        // Note: OpenGL ES only supports GL_RGBA / GL_UNSIGNED_BYTE (in practice)
+        glReadPixels(0, 0, width, height, getFormat(spec), getCpuType(spec), pixels);
         assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
         checkError(__FUNCTION__);
     }
 
     void writePixels(const uint8_t *pixels) final {
-        (void)pixels;
-        assert(false && "TODO: not implemented");
+        Binder binder(texture);
+
+        glTexImage2D(GL_TEXTURE_2D, 0,
+            getInternalFormat(spec),
+            width, height, 0,
+            getFormat(spec),
+            getCpuType(spec),
+            pixels);
+        checkError(__FUNCTION__);
     }
 
-    // int getId() const { return id; }
+    int getId() const { return id; }
 
     int getTextureId() const final {
         return texture.getId();
