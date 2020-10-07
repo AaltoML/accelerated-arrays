@@ -10,6 +10,7 @@ namespace operations {
 namespace {
 typedef ::accelerated::Image BaseImage;
 typedef ::accelerated::operations::fixedConvolution2D::Spec FixedConvolution2DSpec;
+typedef ::accelerated::operations::fill::Spec FillSpec;
 using ::accelerated::operations::Function;
 using ::accelerated::operations::convert;
 
@@ -35,6 +36,14 @@ void forEachPixelAndChannel(Image &img, const std::function<void(Image &img, int
     }
 }
 
+template <class T> SyncUnary fill(const FillSpec &spec) {
+    return [spec](const Image &input, Image &output) {
+        forEachPixelAndChannel(output, [&spec, &input](Image &output, int x, int y, int c) {
+            output.set<T>(x, y, c, static_cast<T>(spec.value.at(c)));
+        });
+    };
+}
+
 template <class T> SyncUnary fixedConvolution2D(const FixedConvolution2DSpec &spec) {
     assert(!spec.kernel.empty());
     return [spec](const Image &input, Image &output) {
@@ -57,13 +66,6 @@ template <class T> SyncUnary fixedConvolution2D(const FixedConvolution2DSpec &sp
             output.set<T>(x, y, c, static_cast<T>(v));
         });
     };
-}
-
-SyncUnary fixedConvolution2D(const FixedConvolution2DSpec &spec, ImageTypeSpec::DataType dataType) {
-    #define X(dtype) if (dataType == ImageTypeSpec::getType<dtype>()) return fixedConvolution2D<dtype>(spec);
-    ACCELERATED_IMAGE_FOR_EACH_TYPE(X)
-    #undef X
-    assert(false);
 }
 
 class CpuFactory : public Factory {
@@ -97,7 +99,22 @@ public:
     }
 
     Function create(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec) final {
-        return wrapChecked(fixedConvolution2D(spec, imageSpec.dataType), imageSpec);
+        #define X(dtype) \
+            if (imageSpec.dataType == ImageTypeSpec::getType<dtype>()) \
+                return wrapChecked(fixedConvolution2D<dtype>(spec), imageSpec);
+        ACCELERATED_IMAGE_FOR_EACH_TYPE(X)
+        #undef X
+        assert(false);
+    }
+
+    Function create(const FillSpec &spec, const ImageTypeSpec &imageSpec) final {
+        assert(int(spec.value.size()) == imageSpec.channels);
+        #define X(dtype) \
+            if (imageSpec.dataType == ImageTypeSpec::getType<dtype>()) \
+                return wrapChecked(fill<dtype>(spec), imageSpec);
+        ACCELERATED_IMAGE_FOR_EACH_TYPE(X)
+        #undef X
+        assert(false);
     }
 };
 }

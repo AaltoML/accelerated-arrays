@@ -8,10 +8,22 @@
 #define __gl2_h_
 #include <GLES2/gl2ext.h>
 
+// logging
+#ifndef log_error
+#include <cstdio>
+// ## is a "gcc" hack for allowing empty __VA_ARGS__
+// https://stackoverflow.com/questions/5891221/variadic-macros-with-zero-arguments
+#define log_debug(fmt, ...) ((void)printf(fmt" (debug)\n", ## __VA_ARGS__))
+#define log_info(fmt, ...) ((void)printf(fmt" (info)\n", ## __VA_ARGS__))
+#define log_warn(fmt, ...) ((void)printf(fmt" (warn)\n", ## __VA_ARGS__))
+#define log_error(fmt, ...) ((void)printf(fmt" (error)\n", ## __VA_ARGS__))
+#endif
+
 namespace accelerated {
 struct ImageTypeSpec;
 
 namespace opengl {
+void checkError(const char *tag);
 
 class Binder {
 public:

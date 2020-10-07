@@ -7,6 +7,20 @@
 namespace accelerated {
 namespace operations {
 
+namespace fill {
+    struct Spec {
+        std::vector<double> value;
+        Spec &setValue(const std::vector<double> &v) {
+            value = v;
+            return *this;
+        }
+        template <class V> Spec &setValue(V v) {
+            value = { static_cast<double>(v) };
+            return *this;
+        }
+    };
+}
+
 // fixed-kernel 2D convolution
 namespace fixedConvolution2D {
     struct Spec {
@@ -62,15 +76,13 @@ namespace fixedConvolution2D {
             return -(kernel.size() / 2) + yOffset;
         }
     };
-
-    struct Factory {
-        virtual Function create(const Spec &spec, const ImageTypeSpec &imageSpec) = 0;
-    };
 }
 
-struct StandardFactory : fixedConvolution2D::Factory
-{
+struct StandardFactory {
     virtual ~StandardFactory() = default;
+
+    virtual Function create(const fill::Spec &spec, const ImageTypeSpec &imageSpec) = 0;
+    virtual Function create(const fixedConvolution2D::Spec &spec, const ImageTypeSpec &imageSpec) = 0;
 };
 
 }

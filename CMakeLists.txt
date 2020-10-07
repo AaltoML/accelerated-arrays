@@ -28,11 +28,16 @@ if (WITH_OPENGL)
   list(APPEND SRC_FILES
     src/opengl/adapters.cpp
     src/opengl/image.cpp
-    src/opengl/operations.cpp)
+    src/opengl/operations.cpp
+    src/opengl/glfw.cpp # TODO: not on mobile
+  )
+  add_definitions("-DACCELERATED_ARRAYS_USE_OPENGL")
 
   list(APPEND LIBRARY_DEPS
     EGL
-    GLESv2) # TODO: GELSv3
+    GLESv2 # TODO: GELSv3
+    glfw # TODO: not on mobile
+  )
 endif()
 
 add_library(${LIBNAME} ${SRC_FILES})

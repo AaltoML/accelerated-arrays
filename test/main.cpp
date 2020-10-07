@@ -2,7 +2,6 @@
 #define CATCH_CONFIG_MAIN
 
 #include <catch2/catch.hpp>
-#include <atomic>
 
 #include "cpu/image.hpp"
 #include "cpu/operations.hpp"
@@ -88,31 +87,5 @@ TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
 
         auto &outCpu = cpu::Image::castFrom(*outImage);
         REQUIRE(outCpu.get<std::int16_t>(1, 1, 1) == int((-2 + 3*6) / 3.0 + 0.5));
-    }
-}
-
-TEST_CASE( "Thread pool", "[accelerated-arrays]" ) {
-    using namespace accelerated;
-
-    for (unsigned itr = 0; itr < 20; ++itr) {
-        auto processor = Processor::createThreadPool(10);
-        std::atomic<int> val;
-        val.store(0);
-        std::vector<Future> parallelOps;
-
-        for (unsigned j = 0; j < 5; ++j) {
-            parallelOps.push_back(processor->enqueue([&val]() {
-                val++;
-            }));
-        }
-
-        for (unsigned j = 0; j < 5; ++j) {
-            processor->enqueue([&val]() {
-                val++;
-            }).wait();
-        }
-
-        for (auto fut : parallelOps) fut.wait();
-        REQUIRE(val.load() == 10);
     }
 }
