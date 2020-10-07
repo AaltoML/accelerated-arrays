@@ -38,8 +38,8 @@ void forEachPixelAndChannel(Image &img, const std::function<void(Image &img, int
 template <class T> SyncUnary fixedConvolution2D(const FixedConvolution2DSpec &spec) {
     assert(!spec.kernel.empty());
     return [spec](const Image &input, Image &output) {
-        const int kernelYOffset = -(spec.kernel.size() / 2) + spec.yOffset;
-        const int kernelXOffset = -(spec.kernel.at(0).size() / 2) + spec.xOffset;
+        const int kernelXOffset = spec.getKernelXOffset();
+        const int kernelYOffset = spec.getKernelYOffset();
         // std::cout << spec.kernel.size() << " " << spec.kernel.at(0).size() << std::endl;
         forEachPixelAndChannel(output, [kernelYOffset, kernelXOffset, &spec, &input](Image &output, int x, int y, int c) {
             double v = spec.bias;

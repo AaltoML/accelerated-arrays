@@ -72,14 +72,6 @@ public:
 
     static std::unique_ptr<Factory> createFactory(Processor &processor);
 
-    template <class T> static ImageTypeSpec getSpec(int channels) {
-        return getSpec(channels, ImageTypeSpec::getType<T>());
-    }
-
-    template <class T> static ImageTypeSpec getSpec() {
-        return getSpec<T>(1);
-    }
-
 protected:
     bool applyBorder(int &x, int &y, Border border) const;
 

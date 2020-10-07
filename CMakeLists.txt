@@ -10,15 +10,34 @@ if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebSymbols)
 endif()
 
-add_library(${LIBNAME}
-  src/cpu/image.cpp
-  src/cpu/operations.cpp
-  src/future.cpp
-  src/function.cpp
-  src/image.cpp
-  src/queue.cpp)
+option(WITH_OPENGL "Compile with OpenGL support" ON)
+
+set(SRC_FILES
+    src/cpu/image.cpp
+    src/cpu/operations.cpp
+    src/future.cpp
+    src/function.cpp
+    src/image.cpp
+    src/queue.cpp
+)
+
+set(LIBRARY_DEPS Threads::Threads)
+
+if (WITH_OPENGL)
+  find_package(OpenGL REQUIRED)
+  list(APPEND SRC_FILES
+    src/opengl/adapters.cpp
+    src/opengl/image.cpp
+    src/opengl/operations.cpp)
+
+  list(APPEND LIBRARY_DEPS
+    EGL
+    GLESv2) # TODO: GELSv3
+endif()
+
+add_library(${LIBNAME} ${SRC_FILES})
 # TODO: public header part
-target_link_libraries(${LIBNAME} Threads::Threads)
+target_link_libraries(${LIBNAME} ${LIBRARY_DEPS})
 
 install(TARGETS ${LIBNAME}
   ARCHIVE DESTINATION lib

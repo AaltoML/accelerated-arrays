@@ -53,6 +53,14 @@ namespace fixedConvolution2D {
             border = b;
             return *this;
         }
+
+        int getKernelXOffset() const {
+            return -(kernel.at(0).size() / 2) + xOffset;
+        }
+
+        int getKernelYOffset() const {
+            return -(kernel.size() / 2) + yOffset;
+        }
     };
 
     struct Factory {
