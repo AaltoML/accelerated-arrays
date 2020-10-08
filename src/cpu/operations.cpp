@@ -36,9 +36,9 @@ void forEachPixelAndChannel(Image &img, const std::function<void(Image &img, int
     }
 }
 
-template <class T> SyncUnary fill(const FillSpec &spec) {
-    return [spec](const Image &input, Image &output) {
-        forEachPixelAndChannel(output, [&spec, &input](Image &output, int x, int y, int c) {
+template <class T> SyncNullary fill(const FillSpec &spec) {
+    return [spec](Image &output) {
+        forEachPixelAndChannel(output, [&spec](Image &output, int x, int y, int c) {
             output.set<T>(x, y, c, static_cast<T>(spec.value.at(c)));
         });
     };
@@ -72,11 +72,26 @@ class CpuFactory : public Factory {
 private:
     Processor &processor;
 
+    Future processNullary(const SyncNullary &f, BaseImage &output) {
+        auto &cpuOutput = Image::castFrom(output);
+        return processor.enqueue([f, &cpuOutput] {
+            f(cpuOutput);
+        });
+    }
+
     Future processUnary(const SyncUnary &f, BaseImage &input, BaseImage &output) {
         auto &cpuInput = Image::castFrom(input);
         auto &cpuOutput = Image::castFrom(output);
         return processor.enqueue([f, &cpuInput, &cpuOutput] {
             f(cpuInput, cpuOutput);
+        });
+    }
+
+    Function wrapChecked(const SyncNullary &f, const ImageTypeSpec &imageSpec) {
+        checkSpec(imageSpec);
+        return convert([f, imageSpec, this](BaseImage &output) -> Future {
+            assert(output == imageSpec);
+            return processNullary(f, output);
         });
     }
 
@@ -91,6 +106,12 @@ private:
 
 public:
     CpuFactory(Processor &processor) : processor(processor) {}
+
+    Function wrap(const SyncNullary &f) final {
+        return convert([f, this](BaseImage &output) -> Future {
+            return processNullary(f, output);
+        });
+    }
 
     Function wrap(const SyncUnary &f) final {
         return convert([f, this](BaseImage &input, BaseImage &output) -> Future {

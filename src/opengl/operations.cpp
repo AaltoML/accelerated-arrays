@@ -17,13 +17,12 @@ void checkSpec(const ImageTypeSpec &spec) {
     assert(Image::isCompatible(spec.storageType));
 }
 
-template <class T> SyncUnary fill(const FillSpec &spec) {
+template <class T> SyncNullary fill(const FillSpec &spec) {
     assert(!spec.value.empty());
-    return [spec](Image &input, Image &output) {
+    return [spec](Image &output) {
 
         // TODO: call GLSL kernel here
 
-        (void)input;
         (void)output;
         assert(false);
     };
@@ -47,11 +46,26 @@ private:
 
     // could be DRYed w.r.t. CpuFactory
 
+    Future processNullary(const SyncNullary &f, BaseImage &output) {
+        auto &gpuOutput = Image::castFrom(output);
+        return processor.enqueue([f, &gpuOutput] {
+            f(gpuOutput);
+        });
+    }
+
     Future processUnary(const SyncUnary &f, BaseImage &input, BaseImage &output) {
         auto &gpuInput = Image::castFrom(input);
         auto &gpuOutput = Image::castFrom(output);
         return processor.enqueue([f, &gpuInput, &gpuOutput] {
             f(gpuInput, gpuOutput);
+        });
+    }
+
+    Function wrapChecked(const SyncNullary &f, const ImageTypeSpec &imageSpec) {
+        checkSpec(imageSpec);
+        return convert([f, imageSpec, this](BaseImage &output) -> Future {
+            assert(output == imageSpec);
+            return processNullary(f, output);
         });
     }
 
@@ -66,6 +80,12 @@ private:
 
 public:
     GpuFactory(Processor &processor) : processor(processor) {}
+
+    Function wrap(const SyncNullary &f) final {
+        return convert([f, this](BaseImage &output) -> Future {
+            return processNullary(f, output);
+        });
+    }
 
     Function wrap(const SyncUnary &f) final {
         return convert([f, this](BaseImage &input, BaseImage &output) -> Future {

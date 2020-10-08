@@ -6,10 +6,12 @@ namespace cpu {
 class Image;
 namespace operations {
 typedef std::function< void(const Image &input, Image &output) > SyncUnary;
+typedef std::function< void(Image &output) > SyncNullary;
 
 class Factory : public ::accelerated::operations::StandardFactory {
 public:
     virtual ::accelerated::operations::Function wrap(const SyncUnary &func) = 0;
+    virtual ::accelerated::operations::Function wrap(const SyncNullary &func) = 0;
 };
 
 // may confuse the compiler due to the inherited "create" methods if inside

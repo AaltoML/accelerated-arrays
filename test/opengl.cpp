@@ -52,5 +52,14 @@ TEST_CASE( "image", "[accelerated-arrays-opengl]" ) {
 
     image->write(inBuf); // single-threaded, no need to wait here
     image->read(outBuf).wait();
-    REQUIRE(outBuf[0] == 111); // TODO
+    REQUIRE(outBuf[0] == 111);
+
+    auto ops = opengl::operations::createFactory(*processor);
+    auto fill = ops->create(
+            operations::fill::Spec{}.setValue({ 201, 202, 203, 204 }),
+            *image);
+
+    operations::callNullary(fill, *image).wait();
+    image->read(outBuf).wait();
+    REQUIRE(outBuf.back() == 204);
 }

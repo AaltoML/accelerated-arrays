@@ -6,6 +6,14 @@
 namespace accelerated {
 namespace operations {
 
+Function convert(const Nullary &f) {
+    return [f](Image** inputs, int nInputs, Image &output) -> Future {
+        assert(nInputs == 0);
+        (void)inputs;
+        return f(output);
+    };
+}
+
 Function convert(const Unary &f) {
     return [f](Image** inputs, int nInputs, Image &output) -> Future {
         assert(nInputs == 1);
@@ -18,6 +26,11 @@ Function convert(const Binary &f) {
         assert(nInputs == 2);
         return f(*inputs[0], *inputs[1], output);
     };
+}
+
+Future callNullary(Function &f, Image &output) {
+    std::array<Image*, 0> arr = {};
+    return call(f, arr, output);
 }
 
 Future callUnary(Function &f, Image &input, Image &output) {

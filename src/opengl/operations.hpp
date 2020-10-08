@@ -5,11 +5,13 @@ class Processor;
 namespace opengl {
 class Image;
 typedef std::function< void(Image &input, Image &output) > SyncUnary;
+typedef std::function< void(Image &output) > SyncNullary;
 
 namespace operations {
 
 class Factory : public ::accelerated::operations::StandardFactory {
     virtual ::accelerated::operations::Function wrap(const SyncUnary &func) = 0;
+    virtual ::accelerated::operations::Function wrap(const SyncNullary &func) = 0;
 };
 
 std::unique_ptr<Factory> createFactory(Processor &processor);
