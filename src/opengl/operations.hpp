@@ -4,14 +4,19 @@ namespace accelerated {
 class Processor;
 namespace opengl {
 class Image;
-typedef std::function< void(Image &input, Image &output) > SyncUnary;
-typedef std::function< void(Image &output) > SyncNullary;
 
 namespace operations {
+typedef std::function< void(Image **inputs, int nInputs, Image &output) > NAry;
+typedef std::function< void(Image &output) > Nullary;
+typedef std::function< void(Image &input, Image &output) > Unary;
+typedef std::function< void(Image &a, Image &b, Image &output) > Binary;
 
 class Factory : public ::accelerated::operations::StandardFactory {
-    virtual ::accelerated::operations::Function wrap(const SyncUnary &func) = 0;
-    virtual ::accelerated::operations::Function wrap(const SyncNullary &func) = 0;
+public:
+    virtual ::accelerated::operations::Function wrapNAry(const NAry &func) = 0;
+    template <class T> ::accelerated::operations::Function wrap(const T &func) {
+        return wrapNAry(::accelerated::operations::sync::convert(func));
+    }
 };
 
 std::unique_ptr<Factory> createFactory(Processor &processor);

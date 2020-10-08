@@ -36,7 +36,7 @@ void forEachPixelAndChannel(Image &img, const std::function<void(Image &img, int
     }
 }
 
-template <class T> SyncNullary fill(const FillSpec &spec) {
+template <class T> Nullary fill(const FillSpec &spec) {
     return [spec](Image &output) {
         forEachPixelAndChannel(output, [&spec](Image &output, int x, int y, int c) {
             output.set<T>(x, y, c, static_cast<T>(spec.value.at(c)));
@@ -44,9 +44,9 @@ template <class T> SyncNullary fill(const FillSpec &spec) {
     };
 }
 
-template <class T> SyncUnary fixedConvolution2D(const FixedConvolution2DSpec &spec) {
+template <class T> Unary fixedConvolution2D(const FixedConvolution2DSpec &spec) {
     assert(!spec.kernel.empty());
-    return [spec](const Image &input, Image &output) {
+    return [spec](Image &input, Image &output) {
         const int kernelXOffset = spec.getKernelXOffset();
         const int kernelYOffset = spec.getKernelYOffset();
         // std::cout << spec.kernel.size() << " " << spec.kernel.at(0).size() << std::endl;
@@ -72,51 +72,22 @@ class CpuFactory : public Factory {
 private:
     Processor &processor;
 
-    Future processNullary(const SyncNullary &f, BaseImage &output) {
-        auto &cpuOutput = Image::castFrom(output);
-        return processor.enqueue([f, &cpuOutput] {
-            f(cpuOutput);
-        });
+    Function wrapNAryChecked(const NAry &f, const ImageTypeSpec &spec) {
+        checkSpec(spec);
+        return ::accelerated::operations::sync::wrapChecked(f, processor, spec);
     }
 
-    Future processUnary(const SyncUnary &f, BaseImage &input, BaseImage &output) {
-        auto &cpuInput = Image::castFrom(input);
-        auto &cpuOutput = Image::castFrom(output);
-        return processor.enqueue([f, &cpuInput, &cpuOutput] {
-            f(cpuInput, cpuOutput);
-        });
-    }
-
-    Function wrapChecked(const SyncNullary &f, const ImageTypeSpec &imageSpec) {
-        checkSpec(imageSpec);
-        return convert([f, imageSpec, this](BaseImage &output) -> Future {
-            assert(output == imageSpec);
-            return processNullary(f, output);
-        });
-    }
-
-    Function wrapChecked(const SyncUnary &f, const ImageTypeSpec &imageSpec) {
-        checkSpec(imageSpec);
-        return convert([f, imageSpec, this](BaseImage &input, BaseImage &output) -> Future {
-            assert(input == imageSpec);
-            assert(output == imageSpec);
-            return processUnary(f, input, output);
-        });
+    template <class T>
+    Function wrapChecked(const T &f, const ImageTypeSpec &spec) {
+        checkSpec(spec);
+        return wrapNAryChecked(::accelerated::operations::sync::convert(f), spec);
     }
 
 public:
     CpuFactory(Processor &processor) : processor(processor) {}
 
-    Function wrap(const SyncNullary &f) final {
-        return convert([f, this](BaseImage &output) -> Future {
-            return processNullary(f, output);
-        });
-    }
-
-    Function wrap(const SyncUnary &f) final {
-        return convert([f, this](BaseImage &input, BaseImage &output) -> Future {
-            return processUnary(f, input, output);
-        });
+    Function wrapNAry(const NAry &f) final {
+        return ::accelerated::operations::sync::wrap(f, processor);
     }
 
     Function create(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec) final {
