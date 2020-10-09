@@ -54,6 +54,12 @@ struct ImageTypeSpec {
     inline bool operator!=(const ImageTypeSpec &other) const {
         return !(*this == other);
     }
+
+    static double maxValueOf(DataType dtype);
+    static double minValueOf(DataType dtype);
+
+    double minValue() const { return minValueOf(dataType); }
+    double maxValue() const { return maxValueOf(dataType); }
 };
 
 /**

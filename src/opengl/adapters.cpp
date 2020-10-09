@@ -101,6 +101,39 @@ int getBindType(const ImageTypeSpec &spec) {
     return -1;
 }
 
+/**
+ * Ensures an OpenGL flag is in the given state and returns it to its
+ * original state afterwards
+ */
+template <GLuint flag, bool targetState> class GlFlagSetter {
+private:
+    const bool origState;
+
+    void logChange(bool state) {
+        (void)state;
+        LOG_TRACE("%s GL flag 0x%x (target state %s)",
+            state ? "enabling" : "disabling", flag,
+            targetState ? "enabled" : "disabled");
+    }
+
+public:
+    GlFlagSetter() : origState(glIsEnabled(flag)) {
+        if (origState != targetState) {
+            logChange(targetState);
+            if (targetState) glEnable(flag);
+            else glDisable(flag);
+        }
+    }
+
+    ~GlFlagSetter() {
+        if (origState != targetState) {
+            logChange(origState);
+            if (origState) glEnable(flag);
+            else glDisable(flag);
+        }
+    }
+};
+
 class TextureImplementation : public Texture {
 private:
     const GLuint bindType;
@@ -149,6 +182,15 @@ public:
     }
 
     void unbind() final {
+        // NOTE/TODO: to be most "correct" this should not assume that no
+        // texture was bound before bind() was called but restore the one
+        // that was.
+        // See: https://www.khronos.org/opengl/wiki/Common_Mistakes
+
+        // However there is a little practical benefit in making this work
+        // optimally in the middle of any other OpenGL processing. Usually
+        // whatever other operation cares about the bound texture state will
+        // just overwrite this anyway.
         glBindTexture(bindType, 0);
         LOG_TRACE("unbound texture");
         checkError(__FUNCTION__);
@@ -208,10 +250,18 @@ public:
         checkError(__FUNCTION__);
     }
 
+    void setViewport() final {
+        LOG_TRACE("glViewport(0, 0, %d, %d)", width, height);
+        glViewport(0, 0, width, height);
+        checkError(__FUNCTION__);
+    }
+
     void readPixels(uint8_t *pixels) final {
         LOG_TRACE("reading frame buffer %d", id);
         Binder binder(*this);
         // Note: OpenGL ES only supports GL_RGBA / GL_UNSIGNED_BYTE (in practice)
+        // Note: check this
+        // https://www.khronos.org/opengl/wiki/Common_Mistakes#Slow_pixel_transfer_performance
         glReadPixels(0, 0, width, height, getFormat(spec), getCpuType(spec), pixels);
         assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
         checkError(__FUNCTION__);
@@ -253,7 +303,8 @@ static GLuint loadShader(GLenum shaderType, const char* shaderSource) {
 
         std::vector<char> buf(static_cast<std::size_t>(len));
         glGetShaderInfoLog(shader, len, nullptr, buf.data());
-        log_error("Error compiling shader %d:\n%s", shaderType, buf.data());
+        log_error("Error compiling shader:\n%s", buf.data());
+        log_error("Failing shader source:\n%s", shaderSource);
         glDeleteShader(shader);
         assert(false);
     }
@@ -325,26 +376,38 @@ public:
 class GlslFragmentShaderImplementation : public GlslFragmentShader {
 private:
     GLuint vertexBuffer = 0, vertexIndexBuffer = 0;
-    GLuint aVertexPos, aTexCoords;
+    GLuint aVertexPos, aTexCoords = 0;
     GlslProgramImplementation program;
 
-    static std::string vertexShaderSource() {
-        return R"(
+    static std::string vertexShaderSource(bool withTexCoord) {
+        const char *varyingTexCoordName = "v_texCoord";
+
+        std::ostringstream oss;
+        oss << R"(
             precision highp float;
             attribute vec4 a_vertexPos;
-            attribute vec2 a_texCoord;
-            varying vec2 v_texCoord;
-            void main()
-            {
-                v_texCoord = a_texCoord;
-                gl_Position = a_vertexPos;
-            }
         )";
+
+        if (withTexCoord) {
+            oss << "attribute vec2 a_texCoord;\n";
+            oss << "varying vec2 " << varyingTexCoordName << ";\n";
+        }
+
+        oss << "void main() {\n";
+
+        if (withTexCoord) {
+            oss << varyingTexCoordName << " = a_texCoord;\n";
+        }
+
+        oss << "gl_Position = a_vertexPos;\n";
+        oss << "}\n";
+
+        return oss.str();
     }
 
 public:
-    GlslFragmentShaderImplementation(const char *fragementShaderSource)
-    : program(vertexShaderSource().c_str(), fragementShaderSource)
+    GlslFragmentShaderImplementation(const char *fragementShaderSource, bool withTexCoord = true)
+    : program(vertexShaderSource(withTexCoord).c_str(), fragementShaderSource)
     {
         glGenBuffers(1, &vertexBuffer);
         glGenBuffers(1, &vertexIndexBuffer);
@@ -368,7 +431,9 @@ public:
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
         aVertexPos = glGetAttribLocation(program.getId(), "a_vertexPos");
-        aTexCoords = glGetAttribLocation(program.getId(), "a_texCoord");
+        if (withTexCoord) {
+            aTexCoords = glGetAttribLocation(program.getId(), "a_texCoord");
+        }
     }
 
     void destroy() final {
@@ -393,24 +458,31 @@ public:
         glVertexAttribPointer(aVertexPos, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 5, nullptr);
         checkError(std::string(__FUNCTION__) + "/glVertexAttribPointer(aVertexPos, ...)");
 
-        glEnableVertexAttribArray(aTexCoords);
-        glVertexAttribPointer(aTexCoords, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 5, (void *)(3 * sizeof(float))); // ???
-        checkError(std::string(__FUNCTION__) + "/glVertexAttribPointer(aTexCoords, ...)");
+        if (aTexCoords != 0) {
+            glEnableVertexAttribArray(aTexCoords);
+            glVertexAttribPointer(aTexCoords, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 5, (void *)(3 * sizeof(float))); // ???
+            checkError(std::string(__FUNCTION__) + "/glVertexAttribPointer(aTexCoords, ...)");
+        }
     }
 
     void unbind() final {
+        if (aTexCoords != 0) glDisableVertexAttribArray(aTexCoords);
         glDisableVertexAttribArray(aVertexPos);
-        glDisableVertexAttribArray(aTexCoords);
         checkError(std::string(__FUNCTION__) + "/glDisableVertexAttribArray x 2");
 
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
         checkError(std::string(__FUNCTION__) + "/glBindBuffer x 2");
 
         program.unbind();
     }
 
     void call() final {
+        // might typically be enabled, thus checking
+        GlFlagSetter<GL_DEPTH_TEST, false> noDepthTest;
+        GlFlagSetter<GL_BLEND, false> noBlend;
+        // GlFlagSetter<GL_ALPHA_TEST, false> noAlphaTest;
+
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         checkError(__FUNCTION__);
     }
@@ -443,6 +515,8 @@ public:
         LOG_TRACE("unbind texture / unfiform at slot %u", slot);
         glActiveTexture(GL_TEXTURE0 + slot);
         glBindTexture(bindType, 0);
+        // restore active texture to the default slot
+        glActiveTexture(GL_TEXTURE0);
     }
 
     TextureUniformBinder &setTextureId(int id) {
@@ -491,7 +565,7 @@ public:
     :
         nTextures(nTextures),
         bindType(bindType),
-        program(buildShaderSource(fragmentMain).c_str())
+        program(buildShaderSource(fragmentMain).c_str(), bindType != 0)
     {
         for (unsigned i = 0; i < nTextures; ++i) {
             textureBinders.push_back(TextureUniformBinder(
@@ -540,6 +614,10 @@ std::unique_ptr<GlslPipeline> GlslPipeline::create(unsigned nTextures, const cha
 
 std::unique_ptr<GlslPipeline> GlslPipeline::createWithExternalTexture(const char *fragmentMain) {
     return std::unique_ptr<GlslPipeline>(new GlslPipelineImplementation(fragmentMain, 1, GL_TEXTURE_EXTERNAL_OES));
+}
+
+std::unique_ptr<GlslPipeline> GlslPipeline::createWithoutTexCoords(const char *fragmentMain) {
+    return std::unique_ptr<GlslPipeline>(new GlslPipelineImplementation(fragmentMain, 0, 0));
 }
 
 }

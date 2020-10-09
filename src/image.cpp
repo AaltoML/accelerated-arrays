@@ -1,6 +1,8 @@
 #include "image.hpp"
 #include "function.hpp"
 
+#include <limits>
+
 namespace accelerated {
 
 Image::~Image() = default;
@@ -31,13 +33,30 @@ ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(X)
 
 std::size_t ImageTypeSpec::bytesPerChannel() const {
     switch (dataType) {
-        case DataType::UINT8: return 1;
-        case DataType::SINT8: return 1;
-        case DataType::UINT16: return 2;
-        case DataType::SINT16: return 2;
-        case DataType::UINT32: return 4;
-        case DataType::SINT32: return 4;
-        case DataType::FLOAT32: return 4;
+        #define X(dtype, name) case name: return sizeof(dtype);
+        ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(X)
+        #undef X
+    }
+    assert(false && "invalid data type");
+    return 0;
+}
+
+double ImageTypeSpec::maxValueOf(DataType dtype) {
+    switch (dtype) {
+        #define X(dtype, name) case name: return std::numeric_limits<dtype>::max();
+        ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(X)
+        #undef X
+    }
+    assert(false && "invalid data type");
+    return 0;
+}
+
+
+double ImageTypeSpec::minValueOf(DataType dtype) {
+    switch (dtype) {
+        #define X(dtype, name) case name: return std::numeric_limits<dtype>::lowest();
+        ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(X)
+        #undef X
     }
     assert(false && "invalid data type");
     return 0;

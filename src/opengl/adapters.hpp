@@ -67,6 +67,9 @@ struct FrameBuffer : Destroyable, Binder::Target {
     virtual void readPixels(uint8_t *pixels) = 0;
     virtual void writePixels(const uint8_t *pixels) = 0;
 
+    /** set glViewport to the full extent of this buffer */
+    virtual void setViewport() = 0;
+
     virtual int getId() const = 0;
     virtual int getTextureId() const = 0;
 
@@ -94,6 +97,7 @@ struct GlslFragmentShader : GlslProgram {
  */
 struct GlslPipeline : GlslFragmentShader {
     static std::unique_ptr<GlslPipeline> create(unsigned nTextures, const char *fragmentMain);
+    static std::unique_ptr<GlslPipeline> createWithoutTexCoords(const char *fragmentMain);
     static std::unique_ptr<GlslPipeline> createWithExternalTexture(const char *fragmentMain);
 
     virtual Binder::Target &bindTexture(unsigned index, int textureId) = 0;

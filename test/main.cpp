@@ -89,3 +89,24 @@ TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
         REQUIRE(outCpu.get<std::int16_t>(1, 1, 1) == int((-2 + 3*6) / 3.0 + 0.5));
     }
 }
+
+TEST_CASE( "types", "[accelerated-arrays]" ) {
+    using namespace accelerated;
+    REQUIRE(int(ImageTypeSpec::minValueOf(ImageTypeSpec::DataType::UINT8)) == 0);
+    REQUIRE(int(ImageTypeSpec::maxValueOf(ImageTypeSpec::DataType::UINT8)) == 0xff);
+
+    REQUIRE(int(ImageTypeSpec::minValueOf(ImageTypeSpec::DataType::SINT8)) == -128);
+    REQUIRE(int(ImageTypeSpec::maxValueOf(ImageTypeSpec::DataType::SINT8)) == 127);
+
+    REQUIRE(int(ImageTypeSpec::minValueOf(ImageTypeSpec::DataType::UINT16)) == 0);
+    REQUIRE(int(ImageTypeSpec::maxValueOf(ImageTypeSpec::DataType::UINT16)) == 0xffff);
+
+    REQUIRE(int(ImageTypeSpec::minValueOf(ImageTypeSpec::DataType::SINT16)) == -0x8000);
+    REQUIRE(int(ImageTypeSpec::maxValueOf(ImageTypeSpec::DataType::SINT16)) == 0x7fff);
+
+    REQUIRE(long(ImageTypeSpec::minValueOf(ImageTypeSpec::DataType::UINT32)) == 0);
+    REQUIRE(long(ImageTypeSpec::maxValueOf(ImageTypeSpec::DataType::UINT32)) == 0xffffffffl);
+
+    REQUIRE(long(ImageTypeSpec::minValueOf(ImageTypeSpec::DataType::SINT32)) == -0x80000000l);
+    REQUIRE(long(ImageTypeSpec::maxValueOf(ImageTypeSpec::DataType::SINT32)) == 0x7fffffffl);
+}

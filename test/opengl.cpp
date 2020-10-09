@@ -61,5 +61,5 @@ TEST_CASE( "image", "[accelerated-arrays-opengl]" ) {
 
     operations::callNullary(fill, *image).wait();
     image->read(outBuf).wait();
-    REQUIRE(outBuf.back() == 204);
+    REQUIRE(int(outBuf.back()) == 204);
 }
