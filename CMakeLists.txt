@@ -31,7 +31,6 @@ if (WITH_OPENGL)
     src/opengl/operations.cpp
     src/opengl/glfw.cpp # TODO: not on mobile
   )
-  add_definitions("-DACCELERATED_ARRAYS_USE_OPENGL")
 
   list(APPEND LIBRARY_DEPS
     EGL
@@ -43,6 +42,10 @@ endif()
 add_library(${LIBNAME} ${SRC_FILES})
 # TODO: public header part
 target_link_libraries(${LIBNAME} ${LIBRARY_DEPS})
+
+if (ANDROID OR IOS)
+  add_target_definitions(${LIBNAME} "-DUSE_OPENGL_ES_ONLY")
+endif()
 
 install(TARGETS ${LIBNAME}
   ARCHIVE DESTINATION lib

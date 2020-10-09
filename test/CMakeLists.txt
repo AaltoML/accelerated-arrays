@@ -1,8 +1,9 @@
 enable_testing()
 
-set(TEST_FILES main.cpp thread_pool.cpp)
+set(TEST_FILES main.cpp convolution.cpp thread_pool.cpp)
 if (WITH_OPENGL)
   list(APPEND TEST_FILES opengl.cpp)
+  add_definitions("-DTEST_WITH_OPENGL")
 endif()
 
 add_executable(run-tests ${TEST_FILES})

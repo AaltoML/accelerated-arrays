@@ -160,8 +160,12 @@ public:
         // TODO: in OpenGL ES, only a limited subset of textures
         // support reading & writing directly, but this is not the case in
         // general in OpenGL
-        return dataType == DataType::UINT8 && channels == 4;
-        // return true;
+        // TODO: not correct
+        #ifdef USE_OPENGL_ES_ONLY
+            return dataType == DataType::UINT8 && channels == 4;
+        #else
+            return true;
+        #endif
     }
 
     FrameBuffer &getFrameBuffer() final {

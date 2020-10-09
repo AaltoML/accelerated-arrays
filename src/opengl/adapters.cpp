@@ -11,6 +11,9 @@
 #define LOG_TRACE(...) (void)0
 #endif
 
+// TODO: move somewhere else
+#define IS_OPENGL_ES
+
 namespace accelerated {
 namespace opengl {
 void checkError(const char *tag) {
@@ -36,35 +39,180 @@ struct Texture : Destroyable, Binder::Target {
 };
 
 namespace {
-int getInternalFormat(const ImageTypeSpec &spec) {
-    // TODO: fill in rest https://www.khronos.org/registry/OpenGL-Refpages/es3.0/html/glTexImage2D.xhtml
+// TODO: Integer formats would be preferable in some cases, but the support
+// seems to be limited (e.g., can't be read in glReadPixels)
+constexpr bool useGlIntegerFormats = false;
 
+int getInternalFormat(const ImageTypeSpec &spec, bool useUnsizedFormats = false) {
     #define X(x) LOG_TRACE("getInternalFormat:%s", #x); return x
-    if (spec.channels == 1) {
-        switch (spec.dataType) {
-            case ImageTypeSpec::DataType::UINT8: X(GL_R8);
-            case ImageTypeSpec::DataType::SINT8: X(GL_R8_SNORM);
-            default: break;
+
+    if (useUnsizedFormats) {
+        switch (spec.channels) {
+            case 1: X(GL_RED);
+            case 2: X(GL_RG);
+            case 3: X(GL_RGB);
+            case 4: X(GL_RGBA);
+            default: assert(false); break;
         }
     }
-    else if (spec.channels == 4) {
-        switch (spec.dataType) {
-            case ImageTypeSpec::DataType::UINT8: X(GL_RGBA); // note: unsized default
-            case ImageTypeSpec::DataType::SINT8: X(GL_RGBA8_SNORM);
+    else if (useGlIntegerFormats && spec.dataType != ImageTypeSpec::DataType::FLOAT32) {
+        if (spec.channels == 1) {
+            switch (spec.dataType) {
+                case ImageTypeSpec::DataType::UINT8: X(GL_R8UI);
+                case ImageTypeSpec::DataType::SINT8: X(GL_R8I);
+                case ImageTypeSpec::DataType::UINT16: X(GL_R16UI);
+                case ImageTypeSpec::DataType::SINT16: X(GL_R16I);
+                case ImageTypeSpec::DataType::UINT32: X(GL_R32UI);
+                case ImageTypeSpec::DataType::SINT32: X(GL_R32I);
+                default: break;
+            }
+        }
+        else if (spec.channels == 2) {
+            switch (spec.dataType) {
+                case ImageTypeSpec::DataType::UINT8: X(GL_RG8UI);
+                case ImageTypeSpec::DataType::SINT8: X(GL_RG8I);
+                case ImageTypeSpec::DataType::UINT16: X(GL_RG16UI);
+                case ImageTypeSpec::DataType::SINT16: X(GL_RG16I);
+                case ImageTypeSpec::DataType::UINT32: X(GL_RG32UI);
+                case ImageTypeSpec::DataType::SINT32: X(GL_RG32I);
+                default: break;
+            }
+        }
+        else if (spec.channels == 3) {
+            switch (spec.dataType) {
+                case ImageTypeSpec::DataType::UINT8: X(GL_RGB8UI);
+                case ImageTypeSpec::DataType::SINT8: X(GL_RGB8I);
+                case ImageTypeSpec::DataType::UINT16: X(GL_RGB16UI);
+                case ImageTypeSpec::DataType::SINT16: X(GL_RGB16I);
+                case ImageTypeSpec::DataType::UINT32: X(GL_RGB32UI);
+                case ImageTypeSpec::DataType::SINT32: X(GL_RGB32I);
+                default: break;
+            }
+        }
+        else if (spec.channels == 4) {
+            switch (spec.dataType) {
+                case ImageTypeSpec::DataType::UINT8: X(GL_RGBA8UI);
+                case ImageTypeSpec::DataType::SINT8: X(GL_RGBA8I);
+                case ImageTypeSpec::DataType::UINT16: X(GL_RGBA16UI);
+                case ImageTypeSpec::DataType::SINT16: X(GL_RGBA16I);
+                case ImageTypeSpec::DataType::UINT32: X(GL_RGBA32UI);
+                case ImageTypeSpec::DataType::SINT32: X(GL_RGBA32I);
+                default: break;
+            }
+        }
+    } else {
+        const bool allowLossy = true;
+        #define LOSSY(x) assert(allowLossy && #x); X(x)
+
+        if (spec.channels == 1) {
+            switch (spec.dataType) {
+                case ImageTypeSpec::DataType::FLOAT32: X(GL_R32F);
+                case ImageTypeSpec::DataType::UINT8: X(GL_R8);
+                case ImageTypeSpec::DataType::SINT8: X(GL_R8_SNORM);
+            #ifdef IS_OPENGL_ES
+                case ImageTypeSpec::DataType::UINT16: LOSSY(GL_R16F);
+                case ImageTypeSpec::DataType::SINT16: LOSSY(GL_R16F);
+            #else
+                case ImageTypeSpec::DataType::UINT16: X(GL_R16);
+                case ImageTypeSpec::DataType::SINT16: X(GL_R16_SNORM);
+            #endif
+                case ImageTypeSpec::DataType::UINT32: LOSSY(GL_R32F);
+                case ImageTypeSpec::DataType::SINT32: LOSSY(GL_R32F);
+                default: break;
+            }
+        }
+        else if (spec.channels == 2) {
+            switch (spec.dataType) {
+                case ImageTypeSpec::DataType::FLOAT32: X(GL_RG32F);
+                case ImageTypeSpec::DataType::UINT8: X(GL_RG8);
+                case ImageTypeSpec::DataType::SINT8: X(GL_RG8_SNORM);
+            #ifdef IS_OPENGL_ES
+                case ImageTypeSpec::DataType::UINT16: LOSSY(GL_RG16F);
+                case ImageTypeSpec::DataType::SINT16: LOSSY(GL_RG16F);
+            #else
+                case ImageTypeSpec::DataType::UINT16: X(GL_RG16);
+                case ImageTypeSpec::DataType::SINT16: X(GL_RG16_SNORM);
+            #endif
+                case ImageTypeSpec::DataType::UINT32: LOSSY(GL_RG32F);
+                case ImageTypeSpec::DataType::SINT32: LOSSY(GL_RG32F);
+                default: break;
+            }
+        }
+        else if (spec.channels == 3) {
+            switch (spec.dataType) {
+                case ImageTypeSpec::DataType::FLOAT32: X(GL_RGB32F);
+                case ImageTypeSpec::DataType::UINT8: X(GL_RGB8);
+                case ImageTypeSpec::DataType::SINT8: X(GL_RGB8_SNORM);
+            #ifdef IS_OPENGL_ES
+                case ImageTypeSpec::DataType::UINT16: LOSSY(GL_RGB16F);
+                case ImageTypeSpec::DataType::SINT16: LOSSY(GL_RGB16F);
+            #else
+                case ImageTypeSpec::DataType::UINT16: X(GL_RGB16);
+                case ImageTypeSpec::DataType::SINT16: X(GL_RGB16_SNORM);
+            #endif
+                case ImageTypeSpec::DataType::UINT32: LOSSY(GL_RGB32F);
+                case ImageTypeSpec::DataType::SINT32: LOSSY(GL_RGB32F);
+                default: break;
+            }
+        }
+        else if (spec.channels == 4) {
+            switch (spec.dataType) {
+                case ImageTypeSpec::DataType::FLOAT32: X(GL_RGBA32F);
+                case ImageTypeSpec::DataType::UINT8: X(GL_RGBA8);
+                case ImageTypeSpec::DataType::SINT8: X(GL_RGBA8_SNORM);
+            #ifdef IS_OPENGL_ES
+                case ImageTypeSpec::DataType::UINT16: LOSSY(GL_RGBA16F);
+                case ImageTypeSpec::DataType::SINT16: LOSSY(GL_RGBA16F);
+            #else
+                case ImageTypeSpec::DataType::UINT16: X(GL_RGBA16);
+                case ImageTypeSpec::DataType::SINT16: X(GL_RGBA16_SNORM);
+            #endif
+                case ImageTypeSpec::DataType::UINT32: LOSSY(GL_RGBA32F);
+                case ImageTypeSpec::DataType::SINT32: LOSSY(GL_RGBA32F);
+                default: break;
+            }
+        }
+
+        #undef LOSSY
+        assert(false && "no suitable internal format");
+    }
+    #undef X
+    assert(false);
+    return -1;
+}
+
+int getCpuFormat(const ImageTypeSpec &spec) {
+    #define X(x) LOG_TRACE("getCpuFormat:%s", #x); return x
+    if (useGlIntegerFormats && spec.dataType != ImageTypeSpec::DataType::FLOAT32) {
+        switch (spec.channels) {
+            case 1: X(GL_RED_INTEGER);
+            case 2: X(GL_RG_INTEGER);
+            case 3: X(GL_RGB_INTEGER);
+            case 4: X(GL_RGBA_INTEGER);
+            default: break;
+        }
+    } else {
+        switch (spec.channels) {
+            case 1: X(GL_RED);
+            case 2: X(GL_RG);
+            case 3: X(GL_RGB);
+            case 4: X(GL_RGBA);
             default: break;
         }
     }
     #undef X
-    assert(false && "not implemented");
+    assert(false);
     return -1;
 }
 
-int getFormat(const ImageTypeSpec &spec) {
-    #define X(x) LOG_TRACE("getFormat:%s", #x); return x
+int getReadPixelFormat(const ImageTypeSpec &spec) {
+    #define X(x) LOG_TRACE("getReadPixelFormat:%s", #x); return x
     switch (spec.channels) {
         case 1: X(GL_RED);
-        case 2: assert(false && "not implemented"); return -1;
-        case 3: X(GL_RGB); // TODO: check
+        case 2:
+            log_warn("OpenGL spec does not allow reading 2-channel directly");
+            X(GL_RG);
+        case 3: X(GL_RGB);
         case 4: X(GL_RGBA);
         default: break;
     }
@@ -74,7 +222,7 @@ int getFormat(const ImageTypeSpec &spec) {
 }
 
 int getCpuType(const ImageTypeSpec &spec) {
-    #define X(x) LOG_TRACE("getFormat:%s", #x); return x
+    #define X(x) LOG_TRACE("getCpuType:%s", #x); return x
     switch (spec.dataType) {
         case ImageTypeSpec::DataType::UINT8: X(GL_UNSIGNED_BYTE);
         case ImageTypeSpec::DataType::SINT8: X(GL_BYTE);
@@ -151,8 +299,8 @@ public:
         glTexImage2D(GL_TEXTURE_2D, 0,
             getInternalFormat(spec),
             width, height, 0,
-            getFormat(spec),
-            GL_UNSIGNED_BYTE, nullptr);
+            getCpuFormat(spec),
+            getCpuType(spec), nullptr);
 
         // TODO: move somewhere else
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -262,7 +410,7 @@ public:
         // Note: OpenGL ES only supports GL_RGBA / GL_UNSIGNED_BYTE (in practice)
         // Note: check this
         // https://www.khronos.org/opengl/wiki/Common_Mistakes#Slow_pixel_transfer_performance
-        glReadPixels(0, 0, width, height, getFormat(spec), getCpuType(spec), pixels);
+        glReadPixels(0, 0, width, height, getReadPixelFormat(spec), getCpuType(spec), pixels);
         assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
         checkError(__FUNCTION__);
     }
@@ -273,7 +421,7 @@ public:
         glTexImage2D(GL_TEXTURE_2D, 0,
             getInternalFormat(spec),
             width, height, 0,
-            getFormat(spec),
+            getCpuFormat(spec),
             getCpuType(spec),
             pixels);
         checkError(__FUNCTION__);
@@ -289,6 +437,8 @@ public:
 static GLuint loadShader(GLenum shaderType, const char* shaderSource) {
     const GLuint shader = glCreateShader(shaderType);
     assert(shader);
+
+    LOG_TRACE("compiling shader:\n %s\n", shaderSource);
 
     glShaderSource(shader, 1, &shaderSource, nullptr);
     glCompileShader(shader);
@@ -376,7 +526,7 @@ public:
 class GlslFragmentShaderImplementation : public GlslFragmentShader {
 private:
     GLuint vertexBuffer = 0, vertexIndexBuffer = 0;
-    GLuint aVertexPos, aTexCoords = 0;
+    GLuint aVertexData = 0;
     GlslProgramImplementation program;
 
     static std::string vertexShaderSource(bool withTexCoord) {
@@ -385,21 +535,20 @@ private:
         std::ostringstream oss;
         oss << R"(
             precision highp float;
-            attribute vec4 a_vertexPos;
+            attribute vec4 a_vertexData;
         )";
 
         if (withTexCoord) {
-            oss << "attribute vec2 a_texCoord;\n";
             oss << "varying vec2 " << varyingTexCoordName << ";\n";
         }
 
         oss << "void main() {\n";
 
         if (withTexCoord) {
-            oss << varyingTexCoordName << " = a_texCoord;\n";
+            oss << varyingTexCoordName << " = a_vertexData.zw;\n";
         }
 
-        oss << "gl_Position = a_vertexPos;\n";
+        oss << "gl_Position = vec4(a_vertexData.xy, 0, 1);\n";
         oss << "}\n";
 
         return oss.str();
@@ -413,27 +562,24 @@ public:
         glGenBuffers(1, &vertexIndexBuffer);
 
         // Set up vertices
-        float vertices[] {
-                // x, y, z, u, v
-                -1, -1, 0, 0, 0,
-                -1, 1, 0, 0, 1,
-                1, 1, 0, 1, 1,
-                1, -1, 0, 1, 0
+        float vertexData[] {
+                // x, y, u, v
+                -1, -1, 0, 0,
+                -1, 1, 0, 1,
+                1, 1, 1, 1,
+                1, -1, 1, 0
         };
         glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData), vertexData, GL_STATIC_DRAW);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
 
         // Set up indices
         GLuint indices[] { 2, 1, 0, 0, 3, 2 };
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexIndexBuffer);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_DYNAMIC_DRAW);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-        aVertexPos = glGetAttribLocation(program.getId(), "a_vertexPos");
-        if (withTexCoord) {
-            aTexCoords = glGetAttribLocation(program.getId(), "a_texCoord");
-        }
+        aVertexData = glGetAttribLocation(program.getId(), "a_vertexData");
     }
 
     void destroy() final {
@@ -454,20 +600,13 @@ public:
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexIndexBuffer);
         checkError(std::string(__FUNCTION__) + "/glBindBuffer x 2");
 
-        glEnableVertexAttribArray(aVertexPos);
-        glVertexAttribPointer(aVertexPos, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 5, nullptr);
-        checkError(std::string(__FUNCTION__) + "/glVertexAttribPointer(aVertexPos, ...)");
-
-        if (aTexCoords != 0) {
-            glEnableVertexAttribArray(aTexCoords);
-            glVertexAttribPointer(aTexCoords, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 5, (void *)(3 * sizeof(float))); // ???
-            checkError(std::string(__FUNCTION__) + "/glVertexAttribPointer(aTexCoords, ...)");
-        }
+        glEnableVertexAttribArray(aVertexData);
+        glVertexAttribPointer(aVertexData, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
+        checkError(std::string(__FUNCTION__) + "/glVertexAttribPointer(aVertexData, ...)");
     }
 
     void unbind() final {
-        if (aTexCoords != 0) glDisableVertexAttribArray(aTexCoords);
-        glDisableVertexAttribArray(aVertexPos);
+        glDisableVertexAttribArray(aVertexData);
         checkError(std::string(__FUNCTION__) + "/glDisableVertexAttribArray x 2");
 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);

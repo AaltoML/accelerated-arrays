@@ -53,7 +53,7 @@ std::string sizzleSubset(std::size_t n) {
     return std::string("rgba").substr(0, n);
 }
 
-std::string convertToOutputValue(const std::string &value, ImageTypeSpec::DataType dtype) {
+std::string convertToFloatOutputValue(const std::string &value, ImageTypeSpec::DataType dtype) {
     double maxValue = maxDataTypeValue(dtype);
     double minValue = minDataTypeValue(dtype);
     std::ostringstream oss;
@@ -68,7 +68,6 @@ std::string convertToOutputValue(const std::string &value, ImageTypeSpec::DataTy
 }
 }
 
-
 struct Fill  {
 private:
     FillSpec spec;
@@ -78,7 +77,7 @@ private:
         std::ostringstream oss;
         oss << "void main() {\n";
         oss << "gl_FragColor." << glsl::sizzleSubset(imageSpec.channels) << " = ";
-        oss << glsl::convertToOutputValue(glsl::wrapToVec(spec.value), imageSpec.dataType) << ";\n";
+        oss << glsl::convertToFloatOutputValue(glsl::wrapToVec(spec.value), imageSpec.dataType) << ";\n";
         oss << "}\n";
         return oss.str();
     }
@@ -108,12 +107,21 @@ struct FixedConvolution2D  {
     FixedConvolution2DSpec spec;
     ImageTypeSpec imageSpec;
 
+    std::string fragmentShaderSource() const {
+        std::ostringstream oss;
+        oss << "void main() {\n";
+        oss << "gl_FragColor." << glsl::sizzleSubset(imageSpec.channels) << " = ";
+        oss << glsl::convertToFloatOutputValue(glsl::wrapToVec(spec.kernel.at(0)), imageSpec.dataType) << ";\n";
+        oss << "}\n";
+        return oss.str();
+    }
+
     FixedConvolution2D(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec)
     : spec(spec), imageSpec(imageSpec)
     {}
 
     std::unique_ptr<GlslPipeline> buildShader() const {
-        return GlslPipeline::create(1, "foobar");
+        return GlslPipeline::create(1, fragmentShaderSource().c_str());
     }
 
     Unary buildCaller() const {
