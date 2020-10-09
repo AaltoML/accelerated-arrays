@@ -4,18 +4,31 @@ namespace accelerated {
 class Processor;
 namespace opengl {
 class Image;
+class GlslPipeline;
+
+typedef std::function< std::unique_ptr<GlslPipeline>() > ShaderBuilder;
 
 namespace operations {
-typedef std::function< void(Image **inputs, int nInputs, Image &output) > NAry;
-typedef std::function< void(Image &output) > Nullary;
-typedef std::function< void(Image &input, Image &output) > Unary;
-typedef std::function< void(Image &a, Image &b, Image &output) > Binary;
+typedef std::function< void(GlslPipeline &shader, Image **inputs, int nInputs, Image &output) > NAry;
+typedef std::function< void(GlslPipeline &shader, Image &output) > Nullary;
+typedef std::function< void(GlslPipeline &shader, Image &input, Image &output) > Unary;
+typedef std::function< void(GlslPipeline &shader, Image &a, Image &b, Image &output) > Binary;
+
+NAry convert(const Nullary &f);
+NAry convert(const Unary &f);
+NAry convert(const Binary &f);
 
 class Factory : public ::accelerated::operations::StandardFactory {
 public:
-    virtual ::accelerated::operations::Function wrapNAry(const NAry &func) = 0;
-    template <class T> ::accelerated::operations::Function wrap(const T &func) {
-        return wrapNAry(::accelerated::operations::sync::convert(func));
+    virtual ::accelerated::operations::Function wrapNAry(
+        const ShaderBuilder &shaderBuilder,
+        const NAry &func) = 0;
+
+    template <class T> ::accelerated::operations::Function wrap(
+        const ShaderBuilder &shaderBuilder,
+        const T &func)
+    {
+        return wrapNAry(shaderBuilder, convert(func));
     }
 };
 

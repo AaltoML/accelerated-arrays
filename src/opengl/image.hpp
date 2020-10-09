@@ -4,11 +4,13 @@
 
 namespace accelerated {
 namespace opengl {
+class FrameBuffer;
 class Image : public ::accelerated::Image {
 public:
     // OpenGL-specifics
     virtual int getTextureId() const = 0;
     virtual bool supportsReadAndWrite() const = 0;
+    virtual FrameBuffer &getFrameBuffer() = 0;
 
     class Factory : public ::accelerated::Image::Factory {
         template <class T, int Channels> std::unique_ptr<Image> wrapTexture(int textureId, int w, int h, StorageType stype = StorageType::GPU_OPENGL) {

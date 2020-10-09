@@ -1,4 +1,5 @@
 #include <cassert>
+#include <sstream>
 
 #include "adapters.hpp"
 #include "../image.hpp"
@@ -29,11 +30,9 @@ void checkError(std::string tag) {
 }
 
 // could be exposed in the hpp file but not used currently elsewhere
-struct Texture : Binder::Target {
+struct Texture : Destroyable, Binder::Target {
     static std::unique_ptr<Texture> create(int w, int h, const ImageTypeSpec &spec);
-    virtual ~Texture();
     virtual int getId() const = 0;
-    virtual void destroy() = 0;
 };
 
 namespace {
@@ -236,14 +235,288 @@ public:
         return texture.getId();
     }
 };
+
+static GLuint loadShader(GLenum shaderType, const char* shaderSource) {
+    const GLuint shader = glCreateShader(shaderType);
+    assert(shader);
+
+    glShaderSource(shader, 1, &shaderSource, nullptr);
+    glCompileShader(shader);
+    GLint compiled = 0;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
+
+    if (!compiled) {
+        GLint len = 0;
+
+        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &len);
+        assert(len);
+
+        std::vector<char> buf(static_cast<std::size_t>(len));
+        glGetShaderInfoLog(shader, len, nullptr, buf.data());
+        log_error("Error compiling shader %d:\n%s", shaderType, buf.data());
+        glDeleteShader(shader);
+        assert(false);
+    }
+
+    return shader;
+}
+
+GLuint createProgram(const char* vertexSource, const char* fragmentSource) {
+    const GLuint vertexShader = loadShader(GL_VERTEX_SHADER, vertexSource);
+    const GLuint fragmentShader = loadShader(GL_FRAGMENT_SHADER, fragmentSource);
+    const GLuint program = glCreateProgram();
+    assert(program);
+    glAttachShader(program, vertexShader);
+    checkError("glAttachShader");
+    glAttachShader(program, fragmentShader);
+    checkError("glAttachShader");
+    glLinkProgram(program);
+    GLint linkStatus = GL_FALSE;
+    glGetProgramiv(program, GL_LINK_STATUS, &linkStatus);
+    if (linkStatus != GL_TRUE) {
+        GLint bufLength = 0;
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &bufLength);
+        if (bufLength) {
+            std::vector<char> buf(static_cast<std::size_t>(bufLength));
+            glGetProgramInfoLog(program, bufLength, nullptr, buf.data());
+            log_error("Could not link program:\n%s", buf.data());
+        }
+        glDeleteProgram(program);
+        assert(false);
+    }
+    return program;
+}
+
+class GlslProgramImplementation : public GlslProgram {
+private:
+    GLuint program;
+
+public:
+    GlslProgramImplementation(const char *vs, const char *fs)
+    : program(createProgram(vs, fs)) {}
+
+    int getId() const final { return program; }
+
+    void bind() final {
+        LOG_TRACE("activating shader: glUseProgram(%d)", program);
+        glUseProgram(program);
+    }
+
+    void unbind() final {
+        LOG_TRACE("deactivating shader: glUseProgram(0)", program);
+        glUseProgram(0);
+    }
+
+    void destroy() final {
+        if (program != 0) {
+            LOG_TRACE("deleting GL program %d", program);
+            glDeleteProgram(program);
+            program = 0;
+        }
+    }
+
+    ~GlslProgramImplementation() {
+        if (program != 0) {
+            log_warn("leaking GL program %d", program);
+        }
+    }
+};
+
+class GlslFragmentShaderImplementation : public GlslFragmentShader {
+private:
+    GLuint vertexBuffer = 0, vertexIndexBuffer = 0;
+    GLuint aVertexPos, aTexCoords;
+    GlslProgramImplementation program;
+
+    static std::string vertexShaderSource() {
+        return R"(
+            precision highp float;
+            attribute vec4 a_vertexPos;
+            attribute vec2 a_texCoord;
+            varying vec2 v_texCoord;
+            void main()
+            {
+                v_texCoord = a_texCoord;
+                gl_Position = a_vertexPos;
+            }
+        )";
+    }
+
+public:
+    GlslFragmentShaderImplementation(const char *fragementShaderSource)
+    : program(vertexShaderSource().c_str(), fragementShaderSource)
+    {
+        glGenBuffers(1, &vertexBuffer);
+        glGenBuffers(1, &vertexIndexBuffer);
+
+        // Set up vertices
+        float vertices[] {
+                // x, y, z, u, v
+                -1, -1, 0, 0, 0,
+                -1, 1, 0, 0, 1,
+                1, 1, 0, 1, 1,
+                1, -1, 0, 1, 0
+        };
+        glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        // Set up indices
+        GLuint indices[] { 2, 1, 0, 0, 3, 2 };
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexIndexBuffer);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_DYNAMIC_DRAW);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+        aVertexPos = glGetAttribLocation(program.getId(), "a_vertexPos");
+        aTexCoords = glGetAttribLocation(program.getId(), "a_texCoord");
+    }
+
+    void destroy() final {
+        if (vertexBuffer != 0) {
+            glDeleteBuffers(1, &vertexBuffer);
+            glDeleteBuffers(1, &vertexIndexBuffer);
+        }
+        program.destroy();
+    }
+
+    // if this leaks, then the "program" member also leaks, which produces
+    // a warning so this can be noticed without customizing the dtor here
+
+    void bind() final {
+        program.bind();
+
+        glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexIndexBuffer);
+        checkError(std::string(__FUNCTION__) + "/glBindBuffer x 2");
+
+        glEnableVertexAttribArray(aVertexPos);
+        glVertexAttribPointer(aVertexPos, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 5, nullptr);
+        checkError(std::string(__FUNCTION__) + "/glVertexAttribPointer(aVertexPos, ...)");
+
+        glEnableVertexAttribArray(aTexCoords);
+        glVertexAttribPointer(aTexCoords, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 5, (void *)(3 * sizeof(float))); // ???
+        checkError(std::string(__FUNCTION__) + "/glVertexAttribPointer(aTexCoords, ...)");
+    }
+
+    void unbind() final {
+        glDisableVertexAttribArray(aVertexPos);
+        glDisableVertexAttribArray(aTexCoords);
+        checkError(std::string(__FUNCTION__) + "/glDisableVertexAttribArray x 2");
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        checkError(std::string(__FUNCTION__) + "/glBindBuffer x 2");
+
+        program.unbind();
+    }
+
+    void call() final {
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        checkError(__FUNCTION__);
+    }
+
+    int getId() const final {
+        return program.getId();
+    }
+};
+
+class TextureUniformBinder : public Binder::Target {
+private:
+    const unsigned slot;
+    const GLuint bindType, uniformId;
+    int textureId;
+
+public:
+    TextureUniformBinder(unsigned slot, GLuint bindType, GLuint uniformId)
+    : slot(slot), bindType(bindType), uniformId(uniformId), textureId(-1) {
+        LOG_TRACE("got texture uniform %d for slot %u", uniformId, slot);
+    }
+
+    void bind() final {
+        LOG_TRACE("bind texture / unfiform at slot %u -> %d", slot, textureId);
+        glActiveTexture(GL_TEXTURE0 + slot);
+        glBindTexture(bindType, textureId);
+        glUniform1i(uniformId, slot);
+    }
+
+    void unbind() final {
+        LOG_TRACE("unbind texture / unfiform at slot %u", slot);
+        glActiveTexture(GL_TEXTURE0 + slot);
+        glBindTexture(bindType, 0);
+    }
+
+    TextureUniformBinder &setTextureId(int id) {
+        textureId = id;
+        return *this;
+    }
+};
+
+class GlslPipelineImplementation : public GlslPipeline {
+private:
+    const unsigned nTextures;
+    const GLuint bindType;
+    GlslFragmentShaderImplementation program;
+    std::vector<TextureUniformBinder> textureBinders;
+
+    std::string textureName(unsigned index) const {
+        std::ostringstream oss;
+        assert(index < nTextures);
+        oss << "u_texture";
+        if (nTextures >= 2 || index > 1) {
+            oss << (index + 1);
+        }
+        return oss.str();
+    }
+
+    std::string buildShaderSource(const char *fragmentMain) const {
+        std::ostringstream oss;
+        std::string texUniformType = "sampler2D";
+        if (bindType == GL_TEXTURE_EXTERNAL_OES) {
+            oss << "#extension GL_OES_EGL_image_external : require\n";
+            texUniformType = "samplerExternalOES";
+        }
+        oss << "precision mediump float;\n";
+        for (unsigned i = 0; i < nTextures; ++i) {
+            oss << "uniform " << texUniformType << " " << textureName(i) << ";\n";
+        }
+
+        oss << "varying vec2 v_texCoord;\n";
+        oss << fragmentMain;
+        oss << std::endl;
+        return oss.str();
+    }
+
+public:
+    GlslPipelineImplementation(const char *fragmentMain, unsigned nTextures, GLuint bindType)
+    :
+        nTextures(nTextures),
+        bindType(bindType),
+        program(buildShaderSource(fragmentMain).c_str())
+    {
+        for (unsigned i = 0; i < nTextures; ++i) {
+            textureBinders.push_back(TextureUniformBinder(
+                i, bindType,
+                glGetUniformLocation(program.getId(), textureName(i).c_str())
+            ));
+        }
+    }
+
+    Binder::Target &bindTexture(unsigned index, int textureId) final {
+        return textureBinders.at(index).setTextureId(textureId);
+    }
+
+    void destroy() final { program.destroy(); }
+    void bind() final { program.bind(); }
+    void unbind() final { program.unbind(); }
+    void call() final { program.call(); }
+    int getId() const final { return program.getId(); }
+};
+
 }
 
 Binder::Binder(Target &target) : target(target) { target.bind(); }
 Binder::~Binder() { target.unbind(); }
-
-Texture::~Texture() = default;
-FrameBuffer::~FrameBuffer() = default;
-GlslProgram::~GlslProgram() = default;
+Destroyable::~Destroyable() = default;
 
 std::unique_ptr<Texture> Texture::create(int w, int h, const ImageTypeSpec &spec) {
     return std::unique_ptr<Texture>(new TextureImplementation(w, h, spec));
@@ -253,6 +526,21 @@ std::unique_ptr<FrameBuffer> FrameBuffer::create(int w, int h, const ImageTypeSp
     return std::unique_ptr<FrameBuffer>(new FrameBufferImplementation(w, h, spec));
 }
 
+std::unique_ptr<GlslProgram> GlslProgram::create(const char *vs, const char *fs) {
+    return std::unique_ptr<GlslProgram>(new GlslProgramImplementation(vs, fs));
+}
+
+std::unique_ptr<GlslFragmentShader> GlslFragmentShader::create(const char *fragementShaderSource) {
+    return std::unique_ptr<GlslFragmentShader>(new GlslFragmentShaderImplementation(fragementShaderSource));
+}
+
+std::unique_ptr<GlslPipeline> GlslPipeline::create(unsigned nTextures, const char *fragmentMain) {
+    return std::unique_ptr<GlslPipeline>(new GlslPipelineImplementation(fragmentMain, nTextures, GL_TEXTURE_2D));
+}
+
+std::unique_ptr<GlslPipeline> GlslPipeline::createWithExternalTexture(const char *fragmentMain) {
+    return std::unique_ptr<GlslPipeline>(new GlslPipelineImplementation(fragmentMain, 1, GL_TEXTURE_EXTERNAL_OES));
+}
 
 }
 }

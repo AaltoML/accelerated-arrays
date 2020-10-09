@@ -1,5 +1,7 @@
 #include <cassert>
+#include <mutex>
 
+#include "adapters.hpp"
 #include "operations.hpp"
 #include "image.hpp"
 
@@ -7,85 +9,163 @@ namespace accelerated {
 namespace opengl {
 namespace operations {
 namespace {
-typedef ::accelerated::Image BaseImage;
 typedef ::accelerated::operations::fill::Spec FillSpec;
 typedef ::accelerated::operations::fixedConvolution2D::Spec FixedConvolution2DSpec;
 using ::accelerated::operations::Function;
-using ::accelerated::operations::convert;
 
 void checkSpec(const ImageTypeSpec &spec) {
     assert(Image::isCompatible(spec.storageType));
 }
 
-template <class T> Nullary fill(const FillSpec &spec) {
-    assert(!spec.value.empty());
-    return [spec](Image &output) {
+struct Fill  {
+    FillSpec spec;
+    ImageTypeSpec imageSpec;
 
-        // TODO: call GLSL kernel here
+    Fill(const FillSpec &spec, const ImageTypeSpec &imageSpec)
+    : spec(spec), imageSpec(imageSpec)
+    {}
 
-        (void)output;
-        assert(false);
-    };
-}
+    std::unique_ptr<GlslPipeline> buildShader() const {
+        return GlslPipeline::create(0, "foobar");
+    }
 
-template <class T> Unary fixedConvolution2D(const FixedConvolution2DSpec &spec) {
-    assert(!spec.kernel.empty());
-    return [spec](Image &input, Image &output) {
+    Nullary buildCaller() const {
+        assert(!spec.value.empty());
+        return [this](GlslPipeline &pipeline, Image &output) {
+            Binder binder(pipeline);
+            Binder frameBufferBinder(output.getFrameBuffer());
 
-        // TODO: call GLSL kernel here
+            // TODO: glViewport
 
-        (void)input;
-        (void)output;
-        assert(false);
-    };
-}
+            pipeline.call();
+        };
+    }
+};
+
+struct FixedConvolution2D  {
+    FixedConvolution2DSpec spec;
+    ImageTypeSpec imageSpec;
+
+    FixedConvolution2D(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec)
+    : spec(spec), imageSpec(imageSpec)
+    {}
+
+    std::unique_ptr<GlslPipeline> buildShader() const {
+        return GlslPipeline::create(1, "foobar");
+    }
+
+    Unary buildCaller() const {
+        assert(!spec.kernel.empty());
+        return [this](GlslPipeline &pipeline, Image &input, Image &output) {
+            Binder binder(pipeline);
+            Binder inputBinder(pipeline.bindTexture(0, input.getTextureId()));
+            Binder frameBufferBinder(output.getFrameBuffer());
+
+            // TODO: glViewport
+
+            pipeline.call();
+        };
+    }
+};
 
 class GpuFactory : public Factory {
 private:
     Processor &processor;
 
-    Function wrapNAryChecked(const NAry &f, const ImageTypeSpec &spec) {
+    class Shader {
+    private:
+        Processor &processor;
+        std::mutex mutex;
+        std::shared_ptr<GlslPipeline> shader;
+
+    public:
+        Shader(Processor &processor) : processor(processor) {}
+
+        void initialize(std::unique_ptr<GlslPipeline> s) {
+            std::lock_guard<std::mutex> lock(mutex);
+            shader = std::move(s);
+        }
+
+        ~Shader() {
+            std::shared_ptr<GlslPipeline> tmp;
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                tmp = shader;
+            }
+
+            processor.enqueue([tmp]() { tmp->destroy(); });
+        }
+
+        GlslPipeline &get() {
+            // should not never called at the same time with other actions
+            assert(shader);
+            return *shader;
+        }
+    };
+
+    Function wrapNAryChecked(const ShaderBuilder &builder, const NAry &f, const ImageTypeSpec &spec) {
         checkSpec(spec);
-        return ::accelerated::operations::sync::wrapChecked(f, processor, spec);
+        std::shared_ptr<Shader> shader(new Shader(processor));
+        processor.enqueue([builder, shader]() { shader->initialize(builder()); });
+        return ::accelerated::operations::sync::wrapChecked<Image, ImageTypeSpec>([shader, f](Image **inputs, int nInputs, Image &output) {
+            f(shader->get(), inputs, nInputs, output);
+        }, processor, spec);
     }
 
     template <class T>
-    Function wrapChecked(const T &f, const ImageTypeSpec &spec) {
-        checkSpec(spec);
-        return wrapNAryChecked(::accelerated::operations::sync::convert(f), spec);
+    Function wrapChecked(const ShaderBuilder &builder, const T &f, const ImageTypeSpec &spec) {
+        return wrapNAryChecked(builder, convert(f), spec);
     }
 
 public:
     GpuFactory(Processor &processor) : processor(processor) {}
 
-    Function wrapNAry(const NAry &f) final {
-        return ::accelerated::operations::sync::wrap(f, processor);
+    Function wrapNAry(const ShaderBuilder &builder, const NAry &f) final {
+        std::shared_ptr<Shader> shader(new Shader(processor));
+        processor.enqueue([builder, shader]() { shader->initialize(builder()); });
+        return ::accelerated::operations::sync::wrap<Image>([shader, f](Image **inputs, int nInputs, Image &output) {
+            f(shader->get(), inputs, nInputs, output);
+        }, processor);
     }
 
     Function create(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec) final {
-        // TODO: enqueue the compilation of the GLSL kernel here
-
-        #define X(dtype) \
-            if (imageSpec.dataType == ImageTypeSpec::getType<dtype>()) \
-                return wrapChecked(fixedConvolution2D<dtype>(spec), imageSpec);
-        ACCELERATED_IMAGE_FOR_EACH_TYPE(X)
-        #undef X
-        assert(false);
+        FixedConvolution2D convolution(spec, imageSpec);
+        return wrapChecked(
+            [convolution]() { return convolution.buildShader(); },
+            convolution.buildCaller(),
+            imageSpec);
     }
 
     Function create(const FillSpec &spec, const ImageTypeSpec &imageSpec) final {
-
-        // TODO: enqueue the compilation of the GLSL kernel here
-
-        assert(int(spec.value.size()) == imageSpec.channels);
-        #define X(dtype) \
-            if (imageSpec.dataType == ImageTypeSpec::getType<dtype>()) \
-                return wrapChecked(fill<dtype>(spec), imageSpec);
-        ACCELERATED_IMAGE_FOR_EACH_TYPE(X)
-        #undef X
-        assert(false);
+        Fill fill(spec, imageSpec);
+        return wrapChecked(
+            [fill]() { return fill.buildShader(); },
+            fill.buildCaller(),
+            imageSpec);
     }
 };
+}
+
+NAry convert(const Nullary &f) {
+    return [f](GlslPipeline &shader, Image** inputs, int nInputs, Image &output) {
+        assert(nInputs == 0);
+        (void)inputs;
+        f(shader, output);
+    };
+}
+
+NAry convert(const Unary &f) {
+    return [f](GlslPipeline &shader, Image** inputs, int nInputs, Image &output) {
+        assert(nInputs == 1);
+        f(shader, **inputs, output);
+    };
+}
+
+NAry convert(const Binary &f) {
+    return [f](GlslPipeline &shader, Image** inputs, int nInputs, Image &output) {
+        assert(nInputs == 2);
+        f(shader, *inputs[0], *inputs[1], output);
+    };
 }
 
 std::unique_ptr<Factory> createFactory(Processor &processor) {

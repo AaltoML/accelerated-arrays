@@ -42,6 +42,11 @@ public:
     bool supportsReadAndWrite() const final {
         return false;
     }
+
+    FrameBuffer &getFrameBuffer() final {
+        assert(false && "not supported");
+        return *reinterpret_cast<FrameBuffer*>(0);
+    }
 };
 
 class FrameBufferManager final : public Image::Factory {
@@ -157,6 +162,10 @@ public:
         // general in OpenGL
         return dataType == DataType::UINT8 && channels == 4;
         // return true;
+    }
+
+    FrameBuffer &getFrameBuffer() final {
+        return *manager.getFrameBuffer(this);
     }
 };
 
