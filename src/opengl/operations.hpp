@@ -4,31 +4,55 @@ namespace accelerated {
 class Processor;
 namespace opengl {
 class Image;
-class GlslPipeline;
-
-typedef std::function< std::unique_ptr<GlslPipeline>() > ShaderBuilder;
+struct Destroyable;
 
 namespace operations {
-typedef std::function< void(GlslPipeline &shader, Image **inputs, int nInputs, Image &output) > NAry;
-typedef std::function< void(GlslPipeline &shader, Image &output) > Nullary;
-typedef std::function< void(GlslPipeline &shader, Image &input, Image &output) > Unary;
-typedef std::function< void(GlslPipeline &shader, Image &a, Image &b, Image &output) > Binary;
+namespace sync {
+typedef std::function< void(Image **inputs, int nInputs, Image &output) > NAry;
+typedef std::function< void(Image &output) > Nullary;
+typedef std::function< void(Image &input, Image &output) > Unary;
+typedef std::function< void(Image &a, Image &b, Image &output) > Binary;
+}
 
-NAry convert(const Nullary &f);
-NAry convert(const Unary &f);
-NAry convert(const Binary &f);
+template <class F> struct Shader {
+    /** Will be invoked in the GL thread */
+    F function;
+    /**
+     * Something that can be properly cleaned up by calling ->destroy() in
+     * the GL thread. Typically the GL shader program and associated stuff
+     */
+    std::unique_ptr<Destroyable> resources;
+
+    typedef std::function< std::unique_ptr<Shader<F>>() > Builder;
+};
 
 class Factory : public ::accelerated::operations::StandardFactory {
 public:
-    virtual ::accelerated::operations::Function wrapNAry(
-        const ShaderBuilder &shaderBuilder,
-        const NAry &func) = 0;
+    /**
+     * The builder function is called on the GL thread. The things in the
+     * shader object it creates will also be accessed / called in the GL
+     * thread.
+     */
+    virtual ::accelerated::operations::Function wrapNAry(const Shader<sync::NAry>::Builder &builder) = 0;
+    virtual ::accelerated::operations::Function wrapNAryChecked(const Shader<sync::NAry>::Builder &builder, const ImageTypeSpec &spec) = 0;
 
-    template <class T> ::accelerated::operations::Function wrap(
-        const ShaderBuilder &shaderBuilder,
-        const T &func)
-    {
-        return wrapNAry(shaderBuilder, convert(func));
+    template <class T> ::accelerated::operations::Function wrap(const typename Shader<T>::Builder &builder) {
+        return wrapNAry(convertToNAry<T>(builder));
+    }
+
+    template <class T> ::accelerated::operations::Function wrapChecked(const typename Shader<T>::Builder &builder, const ImageTypeSpec &spec) {
+        return wrapNAryChecked(convertToNAry<T>(builder), spec);
+    }
+
+private:
+    template <class T> static Shader<sync::NAry>::Builder convertToNAry(const typename Shader<T>::Builder &otherAryBuilder) {
+        return [otherAryBuilder]() {
+           auto otherAry = otherAryBuilder();
+           std::unique_ptr< Shader<sync::NAry> > r(new Shader<sync::NAry>());
+           r->resources = std::move(otherAry->resources);
+           r->function = ::accelerated::operations::sync::convert(otherAry->function);
+           return r;
+       };
     }
 };
 

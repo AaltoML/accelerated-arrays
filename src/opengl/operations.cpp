@@ -1,5 +1,5 @@
+#include <atomic>
 #include <cassert>
-#include <mutex>
 #include <sstream>
 
 #include "adapters.hpp"
@@ -48,7 +48,14 @@ template <class T> std::string wrapToVec(const std::vector<T> &values) {
     return oss.str();
 }
 
-std::string sizzleSubset(std::size_t n) {
+std::string valueType(int channels) {
+    if (channels == 0) return "float";
+    std::ostringstream oss;
+    oss << "vec" << channels;
+    return oss.str();
+}
+
+std::string swizzleSubset(std::size_t n) {
     assert(n > 0 && n <= 4);
     return std::string("rgba").substr(0, n);
 }
@@ -68,173 +75,164 @@ std::string convertToFloatOutputValue(const std::string &value, ImageTypeSpec::D
 }
 }
 
-struct Fill  {
-private:
-    FillSpec spec;
-    ImageTypeSpec imageSpec;
+std::unique_ptr< Shader<sync::Nullary> > fill(const FillSpec &spec, const ImageTypeSpec &imageSpec) {
+    assert(!spec.value.empty());
 
-    std::string fragmentShaderSource() const {
+    std::string fragmentShaderSource;
+    {
         std::ostringstream oss;
         oss << "void main() {\n";
-        oss << "gl_FragColor." << glsl::sizzleSubset(imageSpec.channels) << " = ";
+        oss << "gl_FragColor." << glsl::swizzleSubset(imageSpec.channels) << " = ";
         oss << glsl::convertToFloatOutputValue(glsl::wrapToVec(spec.value), imageSpec.dataType) << ";\n";
         oss << "}\n";
-        return oss.str();
+        fragmentShaderSource = oss.str();
     }
 
-public:
-    Fill(const FillSpec &spec, const ImageTypeSpec &imageSpec)
-    : spec(spec), imageSpec(imageSpec)
-    {}
+    std::unique_ptr< Shader<sync::Nullary> > shader(new Shader<sync::Nullary>);
+    shader->resources = GlslPipeline::createWithoutTexCoords(fragmentShaderSource.c_str());
+    GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
 
-    std::unique_ptr<GlslPipeline> buildShader() const {
-        return GlslPipeline::createWithoutTexCoords(fragmentShaderSource().c_str());
-    }
+    shader->function = [&pipeline](Image &output) {
+        Binder binder(pipeline);
+        auto &fbo = output.getFrameBuffer();
+        Binder frameBufferBinder(fbo);
+        fbo.setViewport();
+        pipeline.call();
+    };
 
-    Nullary buildCaller() const {
-        assert(!spec.value.empty());
-        return [this](GlslPipeline &pipeline, Image &output) {
-            Binder binder(pipeline);
-            auto &fbo = output.getFrameBuffer();
-            Binder frameBufferBinder(fbo);
-            fbo.setViewport();
-            pipeline.call();
-        };
-    }
-};
+    return shader;
+}
 
-struct FixedConvolution2D  {
-    FixedConvolution2DSpec spec;
-    ImageTypeSpec imageSpec;
+std::unique_ptr< Shader<sync::Unary> > fixedConvolution2D(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec) {
+    assert(!spec.kernel.empty());
 
-    std::string fragmentShaderSource() const {
+    std::string fragmentShaderSource;
+    {
         std::ostringstream oss;
+
+        const int kernelH = spec.kernel.size();
+        const int kernelW = spec.kernel.at(0).size();
+
+        oss << "uniform vec2 pixelDelta;\n";
+
+        oss << "#define KERNEL_H " << kernelH << "\n";
+        oss << "#define KERNEL_W " << kernelW << "\n";
+        oss << "#define KERNEL_SZ " << (kernelH * kernelW)  << "\n";
+        oss << "const float kernel[KERNEL_SZ] = float[KERNEL_SZ](\n";
+        for (int i = 0; i < kernelH; ++i) {
+            if (i > 0) oss << ",\n";
+            for (int j = 0; j < kernelW; ++j) {
+                if (j > 0) oss << ", ";
+                oss << spec.kernel.at(i).at(j);
+            }
+        }
+        oss << "\n);\n";
+
+        const auto vtype = glsl::valueType(imageSpec.channels);
+        const auto swiz = glsl::swizzleSubset(imageSpec.channels);
+
+        assert(spec.xStride == 1 && spec.yStride == 1); // TODO
+        oss << "const vec2 beta = vec2(" << spec.getKernelXOffset() << ", " << spec.getKernelYOffset() << ");\n";
+
         oss << "void main() {\n";
-        oss << "gl_FragColor." << glsl::sizzleSubset(imageSpec.channels) << " = ";
-        oss << glsl::convertToFloatOutputValue(glsl::wrapToVec(spec.kernel.at(0)), imageSpec.dataType) << ";\n";
+        oss << vtype << " v = " << vtype << "(0);\n";
+        oss << "for (int i = 0; i < KERNEL_H; i++) {\n";
+        oss << "for (int j = 0; j < KERNEL_W; j++) {\n";
+        oss << "    float k = kernel[i * KERNEL_W + j];\n";
+        oss << "    vec2 coord = v_texCoord + (vec2(float(j), float(i)) + beta) * pixelDelta;\n";
+        oss << "    v += k * texture2D(u_texture, coord)." << swiz << ";\n";
         oss << "}\n";
-        return oss.str();
+        oss << "}\n";
+        oss << "gl_FragColor." << swiz << " = ";
+        oss << glsl::convertToFloatOutputValue("v", imageSpec.dataType) << ";\n";
+        oss << "}\n";
+
+        fragmentShaderSource = oss.str();
     }
 
-    FixedConvolution2D(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec)
-    : spec(spec), imageSpec(imageSpec)
-    {}
+    std::unique_ptr< Shader<sync::Unary> > shader(new Shader<sync::Unary>);
+    shader->resources = GlslPipeline::create(1, fragmentShaderSource.c_str());
+    GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
 
-    std::unique_ptr<GlslPipeline> buildShader() const {
-        return GlslPipeline::create(1, fragmentShaderSource().c_str());
-    }
+    shader->function = [&pipeline](Image &input, Image &output) {
+        Binder binder(pipeline);
+        Binder inputBinder(pipeline.bindTexture(0, input.getTextureId()));
+        auto &fbo = output.getFrameBuffer();
+        Binder frameBufferBinder(fbo);
 
-    Unary buildCaller() const {
-        assert(!spec.kernel.empty());
-        return [this](GlslPipeline &pipeline, Image &input, Image &output) {
-            Binder binder(pipeline);
-            Binder inputBinder(pipeline.bindTexture(0, input.getTextureId()));
-            auto &fbo = output.getFrameBuffer();
-            Binder frameBufferBinder(fbo);
-            fbo.setViewport();
-            pipeline.call();
-        };
-    }
-};
+        // TODO: set uniform
+
+        fbo.setViewport();
+        pipeline.call();
+    };
+
+    return shader;
+}
 
 class GpuFactory : public Factory {
 private:
     Processor &processor;
 
-    class Shader {
+    class ShaderWrapper {
     private:
+        typedef Shader<sync::NAry> S;
         Processor &processor;
-        std::mutex mutex;
-        std::shared_ptr<GlslPipeline> shader;
+        std::shared_ptr< S > shader;
 
     public:
-        Shader(Processor &processor) : processor(processor) {}
+        ShaderWrapper(Processor &processor) : processor(processor) {}
 
-        void initialize(std::unique_ptr<GlslPipeline> s) {
-            std::lock_guard<std::mutex> lock(mutex);
-            shader = std::move(s);
+        void initialize(std::unique_ptr<S> s) {
+            std::shared_ptr<S> tmp = std::move(s);
+            std::atomic_store(&shader, tmp);
         }
 
-        ~Shader() {
-            std::shared_ptr<GlslPipeline> tmp;
-            {
-                std::lock_guard<std::mutex> lock(mutex);
-                tmp = shader;
+        ~ShaderWrapper() {
+            std::shared_ptr<S> tmp = std::atomic_load(&shader);
+            if (tmp) {
+                processor.enqueue([tmp]() {
+                    if (tmp->resources) tmp->resources->destroy();
+                    tmp->resources.reset();
+                });
             }
-
-            processor.enqueue([tmp]() { tmp->destroy(); });
         }
 
-        GlslPipeline &get() {
-            // should not never called at the same time with other actions
-            assert(shader);
-            return *shader;
+        sync::NAry &get() {
+            // should never be called at the same time with other actions
+            std::shared_ptr<S> tmp = std::atomic_load(&shader);
+            assert(tmp && tmp->function);
+            return tmp->function;
         }
     };
-
-    Function wrapNAryChecked(const ShaderBuilder &builder, const NAry &f, const ImageTypeSpec &spec) {
-        checkSpec(spec);
-        std::shared_ptr<Shader> shader(new Shader(processor));
-        processor.enqueue([builder, shader]() { shader->initialize(builder()); });
-        return ::accelerated::operations::sync::wrapChecked<Image, ImageTypeSpec>([shader, f](Image **inputs, int nInputs, Image &output) {
-            f(shader->get(), inputs, nInputs, output);
-        }, processor, spec);
-    }
-
-    template <class T>
-    Function wrapChecked(const ShaderBuilder &builder, const T &f, const ImageTypeSpec &spec) {
-        return wrapNAryChecked(builder, convert(f), spec);
-    }
 
 public:
     GpuFactory(Processor &processor) : processor(processor) {}
 
-    Function wrapNAry(const ShaderBuilder &builder, const NAry &f) final {
-        std::shared_ptr<Shader> shader(new Shader(processor));
-        processor.enqueue([builder, shader]() { shader->initialize(builder()); });
-        return ::accelerated::operations::sync::wrap<Image>([shader, f](Image **inputs, int nInputs, Image &output) {
-            f(shader->get(), inputs, nInputs, output);
+    Function wrapNAry(const Shader<sync::NAry>::Builder &builder) final {
+        std::shared_ptr<ShaderWrapper> wrapper(new ShaderWrapper(processor));
+        processor.enqueue([builder, wrapper]() { wrapper->initialize(builder()); });
+        return ::accelerated::operations::sync::wrap<Image>([wrapper](Image **inputs, int nInputs, Image &output) {
+            wrapper->get()(inputs, nInputs, output);
         }, processor);
     }
 
+    Function wrapNAryChecked(const Shader<sync::NAry>::Builder &builder, const ImageTypeSpec &spec) final {
+        checkSpec(spec);
+        std::shared_ptr<ShaderWrapper> wrapper(new ShaderWrapper(processor));
+        processor.enqueue([builder, wrapper]() { wrapper->initialize(builder()); });
+        return ::accelerated::operations::sync::wrapChecked<Image, ImageTypeSpec>([wrapper](Image **inputs, int nInputs, Image &output) {
+            wrapper->get()(inputs, nInputs, output);
+        }, processor, spec);
+    }
+
     Function create(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec) final {
-        FixedConvolution2D convolution(spec, imageSpec);
-        return wrapChecked(
-            [convolution]() { return convolution.buildShader(); },
-            convolution.buildCaller(),
-            imageSpec);
+        return wrapChecked<sync::Unary>([spec, imageSpec]() { return fixedConvolution2D(spec, imageSpec); }, imageSpec);
     }
 
     Function create(const FillSpec &spec, const ImageTypeSpec &imageSpec) final {
-        Fill fill(spec, imageSpec);
-        return wrapChecked(
-            [fill]() { return fill.buildShader(); },
-            fill.buildCaller(),
-            imageSpec);
+        return wrapChecked<sync::Nullary>([spec, imageSpec]() { return fill(spec, imageSpec); }, imageSpec);
     }
 };
-}
-
-NAry convert(const Nullary &f) {
-    return [f](GlslPipeline &shader, Image** inputs, int nInputs, Image &output) {
-        assert(nInputs == 0);
-        (void)inputs;
-        f(shader, output);
-    };
-}
-
-NAry convert(const Unary &f) {
-    return [f](GlslPipeline &shader, Image** inputs, int nInputs, Image &output) {
-        assert(nInputs == 1);
-        f(shader, **inputs, output);
-    };
-}
-
-NAry convert(const Binary &f) {
-    return [f](GlslPipeline &shader, Image** inputs, int nInputs, Image &output) {
-        assert(nInputs == 2);
-        f(shader, *inputs[0], *inputs[1], output);
-    };
 }
 
 std::unique_ptr<Factory> createFactory(Processor &processor) {
