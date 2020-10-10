@@ -62,4 +62,21 @@ double ImageTypeSpec::minValueOf(DataType dtype) {
     return 0;
 }
 
+bool ImageTypeSpec::isIntegerType(DataType dtype) {
+    return dtype != DataType::FLOAT32;
+}
+
+bool ImageTypeSpec::isSigned(DataType dtype) {
+    switch (dtype) {
+        case DataType::UINT8: return false;
+        case DataType::SINT8: return true;
+        case DataType::UINT16: return false;
+        case DataType::SINT16: return true;
+        case DataType::UINT32: return false;
+        case DataType::SINT32: return true;
+        case DataType::FLOAT32: return true;
+        default: assert(false);
+    }
+    return false;
+}
 }

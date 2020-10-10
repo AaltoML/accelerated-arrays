@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
 #include <GLES3/gl3.h>
 #include <GLES3/gl3ext.h>
@@ -34,12 +35,14 @@ struct ImageTypeSpec;
 
 namespace opengl {
 void checkError(const char *tag);
-
-// TODO: Integer formats would be preferable in some cases, but the support
-// seems to be limited (e.g., can't be read in glReadPixels)
-constexpr bool useGlIntegerFormats = false;
-
 int getTextureInternalFormat(const ImageTypeSpec &spec);
+int getCpuFormat(const ImageTypeSpec &spec);
+int getReadPixelFormat(const ImageTypeSpec &spec);
+int getCpuType(const ImageTypeSpec &spec);
+int getBindType(const ImageTypeSpec &spec);
+std::string getGlslSamplerType(const ImageTypeSpec &spec);
+std::string getGlslScalarType(const ImageTypeSpec &spec);
+std::string getGlslVecType(const ImageTypeSpec &spec);
 
 class Binder {
 public:
@@ -115,11 +118,8 @@ struct GlslFragmentShader : GlslProgram {
  * Default GlslFragmentShader with N input textures
  */
 struct GlslPipeline : GlslFragmentShader {
-    static std::unique_ptr<GlslPipeline> create(unsigned nTextures, const char *fragmentMain, bool withSizes = true);
-    static std::unique_ptr<GlslPipeline> createWithoutTexCoords(const char *fragmentMain);
-    static std::unique_ptr<GlslPipeline> createWithExternalTexture(const char *fragmentMain);
-
-    virtual Binder::Target &bindTexture(unsigned index, int textureId, int width, int height) = 0;
+    static std::unique_ptr<GlslPipeline> create(const char *fragmentMain, const std::vector<ImageTypeSpec> &inputs, const ImageTypeSpec &output);
+    virtual Binder::Target &bindTexture(unsigned index, int textureId) = 0;
 };
 
 }

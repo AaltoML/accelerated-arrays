@@ -19,20 +19,15 @@ double minDataTypeValue(ImageTypeSpec::DataType dtype) {
     return ImageTypeSpec::minValueOf(dtype);
 }
 
-Binder::Target &bindImage(GlslPipeline &pipeline, unsigned slot, Image &image) {
-    return pipeline.bindTexture(slot, image.getTextureId(), image.width, image.height);
-}
-
 namespace glsl {
-template <class T> std::string wrapToVec(const std::vector<T> &values) {
+template <class T> std::string wrapToVec(const std::vector<T> &values, const ImageTypeSpec &spec) {
     assert(!values.empty() && values.size() <= 4);
     std::ostringstream oss;
     if (values.size() == 1) {
         oss << values.at(0);
         return oss.str();
     }
-    oss << "vec";
-    oss << values.size();
+    oss << getGlslVecType(spec);
     oss << "(";
     for (std::size_t i = 0; i < values.size(); ++i) {
         if (i > 0) oss << ",";
@@ -42,16 +37,16 @@ template <class T> std::string wrapToVec(const std::vector<T> &values) {
     return oss.str();
 }
 
-std::string valueType(int channels) {
+std::string swizzleSubset(std::size_t n) {
+    assert(n > 0 && n <= 4);
+    return std::string("rgba").substr(0, n);
+}
+
+std::string floatVecType(int channels) {
     if (channels == 0) return "float";
     std::ostringstream oss;
     oss << "vec" << channels;
     return oss.str();
-}
-
-std::string swizzleSubset(std::size_t n) {
-    assert(n > 0 && n <= 4);
-    return std::string("rgba").substr(0, n);
 }
 
 std::string convertToFloatOutputValue(const std::string &value, ImageTypeSpec::DataType dtype) {

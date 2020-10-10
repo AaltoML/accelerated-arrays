@@ -57,6 +57,8 @@ struct ImageTypeSpec {
 
     static double maxValueOf(DataType dtype);
     static double minValueOf(DataType dtype);
+    static bool isIntegerType(DataType dtype);
+    static bool isSigned(DataType dtype);
 
     double minValue() const { return minValueOf(dataType); }
     double maxValue() const { return maxValueOf(dataType); }

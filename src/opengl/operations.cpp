@@ -29,16 +29,15 @@ Shader<Nullary>::Builder fill(const FillSpec &spec, const ImageTypeSpec &imageSp
     {
         std::ostringstream oss;
         oss << "void main() {\n";
-        oss << "gl_FragColor." << glsl::swizzleSubset(imageSpec.channels) << " = ";
-        oss << glsl::convertToFloatOutputValue(glsl::wrapToVec(spec.value), imageSpec.dataType) << ";\n";
+        oss << "outValue = " << glsl::wrapToVec(spec.value, imageSpec) << ";\n";
         oss << "}\n";
         fragmentShaderBody = oss.str();
     }
 
-    return [fragmentShaderBody]() {
+    return [fragmentShaderBody, imageSpec]() {
         // GLSL compilation happens in the GL thread
         std::unique_ptr< Shader<Nullary> > shader(new Shader<Nullary>);
-        shader->resources = GlslPipeline::createWithoutTexCoords(fragmentShaderBody.c_str());
+        shader->resources = GlslPipeline::create(fragmentShaderBody.c_str(), {}, imageSpec);
         GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
 
         shader->function = [&pipeline](Image &output) {
@@ -74,8 +73,7 @@ Shader<Unary>::Builder fixedConvolution2D(const FixedConvolution2DSpec &spec, co
         }
         oss << "\n);\n";
 
-        const auto vtype = glsl::valueType(imageSpec.channels);
-        const auto swiz = glsl::swizzleSubset(imageSpec.channels);
+        const auto vtype = glsl::floatVecType(imageSpec.channels);
 
         // NOTE: this is a recurring problem in many kernels, could make a
         // suitable helper
@@ -98,26 +96,25 @@ Shader<Unary>::Builder fixedConvolution2D(const FixedConvolution2DSpec &spec, co
         oss << vtype << " v = " << vtype << "(0);\n";
         oss << "for (int i = 0; i < KERNEL_H; i++) {\n";
         oss << "for (int j = 0; j < KERNEL_W; j++) {\n";
-        oss << "    float k = kernel[i * KERNEL_W + j];\n";
-        oss << "    vec2 coord = (alpha * v_texCoord + (vec2(float(j), float(i)) + pixelOffset)) / u_textureSize;\n";
-        oss << "    v += k * " << glsl::convertFromFloatInputValue("texture2D(u_texture, coord)." + swiz, imageSpec.dataType) << ";\n";
+        oss << "    float k = kernel[uint(i * KERNEL_W + j)];\n";
+        oss << "    vec2 coord = (alpha * v_texCoord + (vec2(float(j), float(i)) + pixelOffset)) / vec2(textureSize(u_texture, 0));\n";
+        oss << "    v += k * " << vtype << "(texture2D(u_texture, coord));\n";
         oss << "}\n";
         oss << "}\n";
-        oss << "gl_FragColor." << swiz << " = ";
-        oss << glsl::convertToFloatOutputValue("v", imageSpec.dataType) << ";\n";
+        oss << "outValue = " << getGlslVecType(imageSpec) << "(v);\n";
         oss << "}\n";
 
         fragmentShaderBody = oss.str();
     }
 
-    return [fragmentShaderBody]() {
+    return [fragmentShaderBody, imageSpec]() {
         std::unique_ptr< Shader<Unary> > shader(new Shader<Unary>);
-        shader->resources = GlslPipeline::create(1, fragmentShaderBody.c_str());
+        shader->resources = GlslPipeline::create(fragmentShaderBody.c_str(), { imageSpec }, imageSpec);
         GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
 
         shader->function = [&pipeline](Image &input, Image &output) {
             Binder binder(pipeline);
-            Binder inputBinder(bindImage(pipeline, 0, input));
+            Binder inputBinder(pipeline.bindTexture(0, input.getTextureId()));
             pipeline.call(output.getFrameBuffer());
         };
 

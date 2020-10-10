@@ -55,29 +55,37 @@ operations::Shader<Unary>::Builder createFunction(const Image &img, int targetCh
     std::string fragmentShaderBody;
     {
         std::ostringstream oss;
-        const auto swiz = glsl::swizzleSubset(4);
+        const auto fullSwiz = "rgba";
+        const auto swiz = glsl::swizzleSubset(img.channels);
         oss << "void main() {\n";
-        oss << "float delta = 1.0 / u_textureSize.x;\n";
-        oss << "float offset = 0.5 * (delta - 1.0/u_outSize.x);\n";
-        oss << "vec2 baseCoord = v_texCoord + vec2(offset, 0);\n";
-        for (int i = 0; i < targetChannels / img.channels; ++i) {
-            oss << "vec4 col" << i << " = texture2D(u_texture, baseCoord + delta * float(" << i << "));\n";
+        oss << "ivec2 outCoord = ivec2(v_texCoord / u_outSize);\n";
+        int ratio = targetChannels / img.channels;
+        oss << "int x0 = int(outCoord.x * " << ratio << ");\n";
+        for (int i = 0; i < ratio; ++i) {
+            oss << getGlslVecType(img) << " col" << i << " = texelFetch(u_texture, " << "ivec2(x0 + " << i << ", outCoord.y)" << ", 0)." << swiz << ";\n";
             for (int j = 0; j < img.channels; ++j) {
-                oss << "gl_FragColor." << swiz[i*img.channels + j] << " = col" << i << "." << swiz[j] << ";\n";
+                oss << "outValue." << fullSwiz[i*img.channels + j] << " = col" << i << "." << fullSwiz[j] << ";\n";
             }
         }
         oss << "}\n";
         fragmentShaderBody = oss.str();
     }
 
-    return [fragmentShaderBody]() {
+    ImageTypeSpec spec = img;
+    ImageTypeSpec outSpec {
+        targetChannels,
+        img.dataType,
+        ImageTypeSpec::StorageType::GPU_OPENGL
+    };
+
+    return [fragmentShaderBody, spec, outSpec]() {
         std::unique_ptr< Shader<Unary> > shader(new Shader<Unary>);
-        shader->resources = GlslPipeline::create(1, fragmentShaderBody.c_str());
+        shader->resources = GlslPipeline::create(fragmentShaderBody.c_str(), { spec }, outSpec);
         GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
 
         shader->function = [&pipeline](Image &input, Image &output) {
             Binder binder(pipeline);
-            Binder inputBinder(bindImage(pipeline, 0, input));
+            Binder inputBinder(pipeline.bindTexture(0, input.getTextureId()));
             pipeline.call(output.getFrameBuffer());
         };
 

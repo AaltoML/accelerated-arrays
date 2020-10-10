@@ -29,73 +29,6 @@ struct Texture : Destroyable, Binder::Target {
 };
 
 namespace {
-int getCpuFormat(const ImageTypeSpec &spec) {
-    #define X(x) LOG_TRACE("getCpuFormat:%s", #x); return x
-    if (useGlIntegerFormats && spec.dataType != ImageTypeSpec::DataType::FLOAT32) {
-        switch (spec.channels) {
-            case 1: X(GL_RED_INTEGER);
-            case 2: X(GL_RG_INTEGER);
-            case 3: X(GL_RGB_INTEGER);
-            case 4: X(GL_RGBA_INTEGER);
-            default: break;
-        }
-    } else {
-        switch (spec.channels) {
-            case 1: X(GL_RED);
-            case 2: X(GL_RG);
-            case 3: X(GL_RGB);
-            case 4: X(GL_RGBA);
-            default: break;
-        }
-    }
-    #undef X
-    assert(false);
-    return -1;
-}
-
-int getReadPixelFormat(const ImageTypeSpec &spec) {
-    #define X(x) LOG_TRACE("getReadPixelFormat:%s", #x); return x
-    switch (spec.channels) {
-        case 1: X(GL_RED);
-        case 2:
-            log_warn("OpenGL spec does not allow reading 2-channel directly");
-            X(GL_RG);
-        case 3: X(GL_RGB);
-        case 4: X(GL_RGBA);
-        default: break;
-    }
-    #undef X
-    assert(false);
-    return -1;
-}
-
-int getCpuType(const ImageTypeSpec &spec) {
-    #define X(x) LOG_TRACE("getCpuType:%s", #x); return x
-    switch (spec.dataType) {
-        case ImageTypeSpec::DataType::UINT8: X(GL_UNSIGNED_BYTE);
-        case ImageTypeSpec::DataType::SINT8: X(GL_BYTE);
-        case ImageTypeSpec::DataType::UINT16: X(GL_UNSIGNED_SHORT);
-        case ImageTypeSpec::DataType::SINT16: X(GL_SHORT);
-        case ImageTypeSpec::DataType::UINT32: X(GL_UNSIGNED_INT);
-        case ImageTypeSpec::DataType::SINT32: X(GL_INT);
-        case ImageTypeSpec::DataType::FLOAT32: X(GL_FLOAT);
-    }
-    #undef X
-    assert(false);
-    return -1;
-}
-
-int getBindType(const ImageTypeSpec &spec) {
-    if (spec.storageType == ImageTypeSpec::StorageType::GPU_OPENGL) {
-        LOG_TRACE("getBindType:GL_TEXTURE_2D");
-        return GL_TEXTURE_2D;
-    } else if (spec.storageType == ImageTypeSpec::StorageType::GPU_OPENGL_EXTERNAL) {
-        LOG_TRACE("getBindType:GL_TEXTURE_EXTERNAL_OES");
-        return GL_TEXTURE_EXTERNAL_OES;
-    }
-    assert(false);
-    return -1;
-}
 
 /**
  * Ensures an OpenGL flag is in the given state and returns it to its
@@ -212,11 +145,10 @@ public:
         assert(spec.storageType == Image::StorageType::GPU_OPENGL);
 
         Binder binder(*this);
+
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture.getId(), 0);
         checkError(std::string(__FUNCTION__) + "/glFramebufferTexture2D");
         assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
-
-        checkError(std::string(__FUNCTION__) + "/end");
     }
 
     void destroy() final {
@@ -384,13 +316,11 @@ private:
         const char *varyingTexCoordName = "v_texCoord";
 
         std::ostringstream oss;
-        oss << R"(
-            precision highp float;
-            attribute vec4 a_vertexData;
-        )";
-
+        oss << "#version 300 es\n";
+        oss << "precision highp float;\n";
+        oss << "attribute vec4 a_vertexData;\n";
         if (withTexCoord) {
-            oss << "varying vec2 " << varyingTexCoordName << ";\n";
+            oss << "out vec2 " << varyingTexCoordName << ";\n";
         }
 
         oss << "void main() {\n";
@@ -476,6 +406,10 @@ public:
         Binder frameBufferBinder(frameBuffer);
         frameBuffer.setViewport();
 
+        // GLenum bufs[1] = { GL_COLOR_ATTACHMENT0 }; // single output at location 0
+        // glDrawBuffers(sizeof(bufs), bufs);
+        // checkError(__FUNCTION__);
+
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         checkError(__FUNCTION__);
     }
@@ -488,13 +422,13 @@ public:
 class TextureUniformBinder : public Binder::Target {
 private:
     const unsigned slot;
-    const GLuint bindType, uniformId, sizeUniformId;
-    int textureId = -1, width = -1, height = -1;
+    const GLuint bindType, uniformId;
+    int textureId = -1;
 
 public:
-    TextureUniformBinder(unsigned slot, GLuint bindType, GLuint uniformId, GLuint sizeUniformId = 0)
-    : slot(slot), bindType(bindType), uniformId(uniformId), sizeUniformId(sizeUniformId) {
-        LOG_TRACE("got texture uniform %d & size uniform %d for slot %u", uniformId, sizeUniformId, slot);
+    TextureUniformBinder(unsigned slot, GLuint bindType, GLuint uniformId)
+    : slot(slot), bindType(bindType), uniformId(uniformId) {
+        LOG_TRACE("got texture uniform %d for slot %u", uniformId, slot);
     }
 
     void bind() final {
@@ -502,10 +436,6 @@ public:
         glActiveTexture(GL_TEXTURE0 + slot);
         glBindTexture(bindType, textureId);
         glUniform1i(uniformId, slot);
-        if (sizeUniformId != 0) {
-            LOG_TRACE("setting texture size uniform to %d x %d", width, height);
-            glUniform2f(sizeUniformId, width, height);
-        }
     }
 
     void unbind() final {
@@ -516,23 +446,19 @@ public:
         glActiveTexture(GL_TEXTURE0);
     }
 
-    TextureUniformBinder &setTextureIdAndSize(int id, int w, int h) {
+    TextureUniformBinder &setTextureId(int id) {
         textureId = id;
-        width = w;
-        height = h;
         return *this;
     }
 };
 
 class GlslPipelineImplementation : public GlslPipeline {
 private:
-    const unsigned nTextures;
-    const GLuint bindType;
     GLuint outSizeUniform;
     GlslFragmentShaderImplementation program;
     std::vector<TextureUniformBinder> textureBinders;
 
-    std::string textureName(unsigned index) const {
+    std::string textureName(unsigned index, unsigned nTextures) const {
         std::ostringstream oss;
         assert(index < nTextures);
         oss << "u_texture";
@@ -542,64 +468,61 @@ private:
         return oss.str();
     }
 
-    std::string textureSizeName(unsigned index) const {
-        return textureName(index) + "Size";
-    }
-
     static std::string outSizeName() {
         return "u_outSize";
     }
 
-    std::string buildShaderSource(const char *fragmentMain, bool withSizes) const {
+    static bool hasExternal(const std::vector<ImageTypeSpec> &inputs) {
+        for (const auto &in : inputs)
+            if (getBindType(in) != GL_TEXTURE_2D) return true;
+        return false;
+    }
+
+    std::string buildShaderSource(const char *fragmentMain, const std::vector<ImageTypeSpec> &inputs, const ImageTypeSpec &output) const {
         std::ostringstream oss;
-        std::string texUniformType = "sampler2D";
-        if (bindType == GL_TEXTURE_EXTERNAL_OES) {
+        oss << "#version 300 es\n";
+        if (hasExternal(inputs)) {
             oss << "#extension GL_OES_EGL_image_external : require\n";
-            texUniformType = "samplerExternalOES";
         }
+        oss << "layout(location = 0) out " << getGlslVecType(output) << " outValue;\n";
         oss << "precision highp float;\n";
-        for (unsigned i = 0; i < nTextures; ++i) {
-            std::string texName = textureName(i);
-            oss << "uniform " << texUniformType << " " << textureName(i) << ";\n";
-            if (withSizes) oss << "uniform vec2 " << textureSizeName(i) << ";\n";
+
+        for (std::size_t i = 0; i < inputs.size(); ++i) {
+            oss << "uniform " << getGlslSamplerType(inputs.at(i)) << " " << textureName(i, inputs.size()) << ";\n";
         }
-        if (withSizes) oss << "uniform vec2 " << outSizeName() << ";\n";
-        oss << "varying vec2 v_texCoord;\n";
+
+        oss << "uniform vec2 " << outSizeName() << ";\n";
+        oss << "in vec2 v_texCoord;\n";
         oss << fragmentMain;
         oss << std::endl;
         return oss.str();
     }
 
 public:
-    GlslPipelineImplementation(const char *fragmentMain, unsigned nTextures, GLuint bindType, bool withSizes = true)
+    GlslPipelineImplementation(const char *fragmentMain, const std::vector<ImageTypeSpec> &inputs, const ImageTypeSpec &output)
     :
-        nTextures(nTextures),
-        bindType(bindType),
         outSizeUniform(0),
-        program(buildShaderSource(fragmentMain, withSizes).c_str(), bindType != 0)
+        program(buildShaderSource(fragmentMain, inputs, output).c_str())
     {
-        if (withSizes) {
-            outSizeUniform = glGetUniformLocation(program.getId(), outSizeName().c_str());
-        }
-        for (unsigned i = 0; i < nTextures; ++i) {
+        outSizeUniform = glGetUniformLocation(program.getId(), outSizeName().c_str());
+        for (std::size_t i = 0; i < inputs.size(); ++i) {
             textureBinders.push_back(TextureUniformBinder(
-                i, bindType,
-                glGetUniformLocation(program.getId(), textureName(i).c_str()),
-                withSizes ? glGetUniformLocation(program.getId(), textureSizeName(i).c_str()) : 0
+                i,
+                getBindType(inputs.at(i)),
+                glGetUniformLocation(program.getId(), textureName(i, inputs.size()).c_str())
             ));
         }
         checkError(__FUNCTION__);
     }
 
-    Binder::Target &bindTexture(unsigned index, int textureId, int w, int h) final {
-        return textureBinders.at(index).setTextureIdAndSize(textureId, w, h);
+    Binder::Target &bindTexture(unsigned index, int textureId) final {
+        return textureBinders.at(index).setTextureId(textureId);
     }
 
     void call(FrameBuffer &frameBuffer) final {
-        if (outSizeUniform) {
-            LOG_TRACE("setting out size uniform");
-            glUniform2f(outSizeUniform, frameBuffer.getWidth(), frameBuffer.getHeight());
-        }
+        LOG_TRACE("setting out size uniform");
+        glUniform2f(outSizeUniform, frameBuffer.getWidth(), frameBuffer.getHeight());
+
         checkError(__FUNCTION__);
         program.call(frameBuffer);
     }
@@ -632,16 +555,8 @@ std::unique_ptr<GlslFragmentShader> GlslFragmentShader::create(const char *frage
     return std::unique_ptr<GlslFragmentShader>(new GlslFragmentShaderImplementation(fragementShaderSource));
 }
 
-std::unique_ptr<GlslPipeline> GlslPipeline::create(unsigned nTextures, const char *fragmentMain, bool withSizes) {
-    return std::unique_ptr<GlslPipeline>(new GlslPipelineImplementation(fragmentMain, nTextures, GL_TEXTURE_2D, withSizes));
-}
-
-std::unique_ptr<GlslPipeline> GlslPipeline::createWithExternalTexture(const char *fragmentMain) {
-    return std::unique_ptr<GlslPipeline>(new GlslPipelineImplementation(fragmentMain, 1, GL_TEXTURE_EXTERNAL_OES));
-}
-
-std::unique_ptr<GlslPipeline> GlslPipeline::createWithoutTexCoords(const char *fragmentMain) {
-    return std::unique_ptr<GlslPipeline>(new GlslPipelineImplementation(fragmentMain, 0, 0, false));
+std::unique_ptr<GlslPipeline> GlslPipeline::create(const char *fragmentMain, const std::vector<ImageTypeSpec> &inputs, const ImageTypeSpec &output) {
+    return std::unique_ptr<GlslPipeline>(new GlslPipelineImplementation(fragmentMain, inputs, output));
 }
 
 }
