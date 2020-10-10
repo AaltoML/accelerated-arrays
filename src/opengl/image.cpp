@@ -6,13 +6,6 @@
 #include "image.hpp"
 #include "read_adapters.hpp"
 
-//#define ACCELERATED_ARRAYS_DEBUG_IMAGE
-#ifdef ACCELERATED_ARRAYS_DEBUG_IMAGE
-#define LOG_TRACE(...) log_debug(__VA_ARGS__)
-#else
-#define LOG_TRACE(...) (void)0
-#endif
-
 namespace accelerated {
 namespace opengl {
 namespace {

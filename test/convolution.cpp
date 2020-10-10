@@ -1,4 +1,5 @@
 #include <catch2/catch.hpp>
+#include <iostream>
 
 #include "cpu/image.hpp"
 #include "cpu/operations.hpp"
@@ -67,7 +68,9 @@ TEST_CASE( "Convolution 2D", "[accelerated-arrays]" ) {
         auto checkerProc = Processor::createInstant();
         auto factory = cpu::Image::createFactory(*checkerProc);
         auto checkImage = factory->create<std::int16_t, 2>(3, 4);
+        // for (auto &el : outData) std::cout << "out-data:" << int(el) << std::endl;
         checkImage->write(outData).wait();
+
         const auto &outCpu = cpu::Image::castFrom(*checkImage);
         REQUIRE(outCpu.get<std::int16_t>(1, 1, 1) == int((-2 + 3*6) / 3.0 + 0.5));
     }

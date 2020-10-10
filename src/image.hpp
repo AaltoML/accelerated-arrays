@@ -82,6 +82,7 @@ struct Image : ImageTypeSpec {
     {};
 
     inline std::size_t numberOfPixels() const { return width * height; }
+    inline std::size_t numberOfScalars() const { return numberOfPixels() * channels; }
 
     inline std::size_t size() const { return numberOfPixels() * bytesPerPixel(); }
 
@@ -99,12 +100,12 @@ struct Image : ImageTypeSpec {
     template <class T> Future write(const T *inputData);
 
     template <class T> inline Future read(std::vector<T> &output) {
-        output.resize(numberOfPixels() * channels);
+        output.resize(numberOfScalars());
         return read<T>(output.data());
     }
 
     template <class T> inline Future write(const std::vector<T> &input) {
-        assert(input.size() == numberOfPixels() * channels);
+        assert(input.size() == numberOfScalars());
         return write<T>(input.data());
     }
 

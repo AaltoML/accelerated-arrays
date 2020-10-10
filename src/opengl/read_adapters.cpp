@@ -33,6 +33,7 @@ struct Adapter {
                 outOffset += origRowWidth;
                 inOffset += bufRowWidth;
             }
+            // for (const auto &el : cpuBuffer) log_debug("cpu-buffer: %d", int(el));
             assert(inOffset == int(buffer->size()));
         };
         return true;
@@ -125,7 +126,7 @@ std::function<Future(std::uint8_t*)> createReadAdpater(
         if (adapter->cpuFunction) {
             adapter->buffer->readRaw(adapter->cpuBuffer.data());
             return processor.enqueue([adapter, outData]() {
-                log_debug("finished");
+                LOG_TRACE("CPU copy");
                 adapter->cpuFunction(outData);
             });
         } else {

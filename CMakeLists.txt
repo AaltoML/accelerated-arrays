@@ -31,6 +31,7 @@ if (WITH_OPENGL)
     src/opengl/operations.cpp
     src/opengl/read_adapters.cpp
     src/opengl/glfw.cpp # TODO: not on mobile
+    src/opengl/texture_formats.cpp
   )
 
   list(APPEND LIBRARY_DEPS

@@ -58,13 +58,11 @@ std::string convertToFloatOutputValue(const std::string &value, ImageTypeSpec::D
     double maxValue = maxDataTypeValue(dtype);
     double minValue = minDataTypeValue(dtype);
     std::ostringstream oss;
-    oss << "((";
+    oss << "((" << value << ") / float(" << (maxValue - minValue) << ")";
     if (minValue != 0.0) {
-        oss << "(" << value << ") + (" << minValue << ")";
-    } else {
-        oss << value;
+        oss << " - float(" << (minValue/(maxValue - minValue)) << ")";
     }
-    oss  << ") * float(" << (1.0 / (maxValue - minValue)) << "))";
+    oss << ")";
     return oss.str();
 }
 
@@ -72,9 +70,9 @@ std::string convertFromFloatInputValue(const std::string &value, ImageTypeSpec::
     double maxValue = maxDataTypeValue(dtype);
     double minValue = minDataTypeValue(dtype);
     std::ostringstream oss;
-    oss << "(float(" << (maxValue - minValue) << ") * (" << value << ")";
-    if (minValue != 0.0) oss << " - (" << minValue << ")";
-    oss << ")";
+    oss << "(float(" << (maxValue - minValue) << ") * ((" << value << ")";
+    if (minValue != 0.0) oss << " + (" << (minValue/(maxValue - minValue)) << ")";
+    oss << "))";
     return oss.str();
 }
 

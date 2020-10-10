@@ -32,5 +32,6 @@ public:
 protected:
     Image(int w, int h, const ImageTypeSpec &spec);
 };
+
 }
 }

@@ -44,11 +44,14 @@ TEST_CASE( "image", "[accelerated-arrays-opengl]" ) {
     using namespace accelerated;
     auto processor = opengl::createGLFWProcessor();
     auto factory = opengl::Image::createFactory(*processor);
-    auto image = factory->create<std::uint8_t, 4>(20, 30);
 
-    std::vector<std::uint8_t> inBuf, outBuf;
-    inBuf.resize(image->size(), 111);
-    outBuf.resize(image->size(), 222);
+    typedef std::uint16_t Type;
+
+    auto image = factory->create<Type, 4>(20, 30);
+
+    std::vector<Type> inBuf, outBuf;
+    inBuf.resize(image->numberOfScalars(), 111);
+    outBuf.resize(image->numberOfScalars(), 222);
 
     image->write(inBuf); // single-threaded, no need to wait here
     image->read(outBuf).wait();

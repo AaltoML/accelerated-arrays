@@ -4,16 +4,6 @@
 #include "adapters.hpp"
 #include "../image.hpp"
 
-#define ACCELERATED_ARRAYS_DEBUG_ADAPTERS
-#ifdef ACCELERATED_ARRAYS_DEBUG_ADAPTERS
-#define LOG_TRACE(...) log_debug(__VA_ARGS__)
-#else
-#define LOG_TRACE(...) (void)0
-#endif
-
-// TODO: move somewhere else
-#define IS_OPENGL_ES
-
 namespace accelerated {
 namespace opengl {
 void checkError(const char *tag) {
@@ -39,148 +29,6 @@ struct Texture : Destroyable, Binder::Target {
 };
 
 namespace {
-// TODO: Integer formats would be preferable in some cases, but the support
-// seems to be limited (e.g., can't be read in glReadPixels)
-constexpr bool useGlIntegerFormats = false;
-
-int getInternalFormat(const ImageTypeSpec &spec, bool useUnsizedFormats = false) {
-    #define X(x) LOG_TRACE("getInternalFormat:%s", #x); return x
-
-    if (useUnsizedFormats) {
-        switch (spec.channels) {
-            case 1: X(GL_RED);
-            case 2: X(GL_RG);
-            case 3: X(GL_RGB);
-            case 4: X(GL_RGBA);
-            default: assert(false); break;
-        }
-    }
-    else if (useGlIntegerFormats && spec.dataType != ImageTypeSpec::DataType::FLOAT32) {
-        if (spec.channels == 1) {
-            switch (spec.dataType) {
-                case ImageTypeSpec::DataType::UINT8: X(GL_R8UI);
-                case ImageTypeSpec::DataType::SINT8: X(GL_R8I);
-                case ImageTypeSpec::DataType::UINT16: X(GL_R16UI);
-                case ImageTypeSpec::DataType::SINT16: X(GL_R16I);
-                case ImageTypeSpec::DataType::UINT32: X(GL_R32UI);
-                case ImageTypeSpec::DataType::SINT32: X(GL_R32I);
-                default: break;
-            }
-        }
-        else if (spec.channels == 2) {
-            switch (spec.dataType) {
-                case ImageTypeSpec::DataType::UINT8: X(GL_RG8UI);
-                case ImageTypeSpec::DataType::SINT8: X(GL_RG8I);
-                case ImageTypeSpec::DataType::UINT16: X(GL_RG16UI);
-                case ImageTypeSpec::DataType::SINT16: X(GL_RG16I);
-                case ImageTypeSpec::DataType::UINT32: X(GL_RG32UI);
-                case ImageTypeSpec::DataType::SINT32: X(GL_RG32I);
-                default: break;
-            }
-        }
-        else if (spec.channels == 3) {
-            switch (spec.dataType) {
-                case ImageTypeSpec::DataType::UINT8: X(GL_RGB8UI);
-                case ImageTypeSpec::DataType::SINT8: X(GL_RGB8I);
-                case ImageTypeSpec::DataType::UINT16: X(GL_RGB16UI);
-                case ImageTypeSpec::DataType::SINT16: X(GL_RGB16I);
-                case ImageTypeSpec::DataType::UINT32: X(GL_RGB32UI);
-                case ImageTypeSpec::DataType::SINT32: X(GL_RGB32I);
-                default: break;
-            }
-        }
-        else if (spec.channels == 4) {
-            switch (spec.dataType) {
-                case ImageTypeSpec::DataType::UINT8: X(GL_RGBA8UI);
-                case ImageTypeSpec::DataType::SINT8: X(GL_RGBA8I);
-                case ImageTypeSpec::DataType::UINT16: X(GL_RGBA16UI);
-                case ImageTypeSpec::DataType::SINT16: X(GL_RGBA16I);
-                case ImageTypeSpec::DataType::UINT32: X(GL_RGBA32UI);
-                case ImageTypeSpec::DataType::SINT32: X(GL_RGBA32I);
-                default: break;
-            }
-        }
-    } else {
-        const bool allowLossy = true;
-        #define LOSSY(x) assert(allowLossy && #x); X(x)
-
-        if (spec.channels == 1) {
-            switch (spec.dataType) {
-                case ImageTypeSpec::DataType::FLOAT32: X(GL_R32F);
-                case ImageTypeSpec::DataType::UINT8: X(GL_R8);
-                case ImageTypeSpec::DataType::SINT8: X(GL_R8_SNORM);
-            #ifdef IS_OPENGL_ES
-                case ImageTypeSpec::DataType::UINT16: LOSSY(GL_R16F);
-                case ImageTypeSpec::DataType::SINT16: LOSSY(GL_R16F);
-            #else
-                case ImageTypeSpec::DataType::UINT16: X(GL_R16);
-                case ImageTypeSpec::DataType::SINT16: X(GL_R16_SNORM);
-            #endif
-                case ImageTypeSpec::DataType::UINT32: LOSSY(GL_R32F);
-                case ImageTypeSpec::DataType::SINT32: LOSSY(GL_R32F);
-                default: break;
-            }
-        }
-        else if (spec.channels == 2) {
-            switch (spec.dataType) {
-                case ImageTypeSpec::DataType::FLOAT32: X(GL_RG32F);
-                case ImageTypeSpec::DataType::UINT8: X(GL_RG8);
-                case ImageTypeSpec::DataType::SINT8: X(GL_RG8_SNORM);
-            #ifdef IS_OPENGL_ES
-                case ImageTypeSpec::DataType::UINT16: LOSSY(GL_RG16F);
-                case ImageTypeSpec::DataType::SINT16: LOSSY(GL_RG16F);
-            #else
-                case ImageTypeSpec::DataType::UINT16: X(GL_RG16);
-                case ImageTypeSpec::DataType::SINT16: X(GL_RG16_SNORM);
-            #endif
-                case ImageTypeSpec::DataType::UINT32: LOSSY(GL_RG32F);
-                case ImageTypeSpec::DataType::SINT32: LOSSY(GL_RG32F);
-                default: break;
-            }
-        }
-        else if (spec.channels == 3) {
-            switch (spec.dataType) {
-                case ImageTypeSpec::DataType::FLOAT32: X(GL_RGB32F);
-                case ImageTypeSpec::DataType::UINT8: X(GL_RGB8);
-                case ImageTypeSpec::DataType::SINT8: X(GL_RGB8_SNORM);
-            #ifdef IS_OPENGL_ES
-                case ImageTypeSpec::DataType::UINT16: LOSSY(GL_RGB16F);
-                case ImageTypeSpec::DataType::SINT16: LOSSY(GL_RGB16F);
-            #else
-                case ImageTypeSpec::DataType::UINT16: X(GL_RGB16);
-                case ImageTypeSpec::DataType::SINT16: X(GL_RGB16_SNORM);
-            #endif
-                case ImageTypeSpec::DataType::UINT32: LOSSY(GL_RGB32F);
-                case ImageTypeSpec::DataType::SINT32: LOSSY(GL_RGB32F);
-                default: break;
-            }
-        }
-        else if (spec.channels == 4) {
-            switch (spec.dataType) {
-                case ImageTypeSpec::DataType::FLOAT32: X(GL_RGBA32F);
-                case ImageTypeSpec::DataType::UINT8: X(GL_RGBA8);
-                case ImageTypeSpec::DataType::SINT8: X(GL_RGBA8_SNORM);
-            #ifdef IS_OPENGL_ES
-                case ImageTypeSpec::DataType::UINT16: LOSSY(GL_RGBA16F);
-                case ImageTypeSpec::DataType::SINT16: LOSSY(GL_RGBA16F);
-            #else
-                case ImageTypeSpec::DataType::UINT16: X(GL_RGBA16);
-                case ImageTypeSpec::DataType::SINT16: X(GL_RGBA16_SNORM);
-            #endif
-                case ImageTypeSpec::DataType::UINT32: LOSSY(GL_RGBA32F);
-                case ImageTypeSpec::DataType::SINT32: LOSSY(GL_RGBA32F);
-                default: break;
-            }
-        }
-
-        #undef LOSSY
-        assert(false && "no suitable internal format");
-    }
-    #undef X
-    assert(false);
-    return -1;
-}
-
 int getCpuFormat(const ImageTypeSpec &spec) {
     #define X(x) LOG_TRACE("getCpuFormat:%s", #x); return x
     if (useGlIntegerFormats && spec.dataType != ImageTypeSpec::DataType::FLOAT32) {
@@ -297,7 +145,7 @@ public:
 
         Binder binder(*this);
         glTexImage2D(GL_TEXTURE_2D, 0,
-            getInternalFormat(spec),
+            getTextureInternalFormat(spec),
             width, height, 0,
             getCpuFormat(spec),
             getCpuType(spec), nullptr);
@@ -422,7 +270,7 @@ public:
         Binder binder(texture);
 
         glTexImage2D(GL_TEXTURE_2D, 0,
-            getInternalFormat(spec),
+            getTextureInternalFormat(spec),
             width, height, 0,
             getCpuFormat(spec),
             getCpuType(spec),
@@ -650,7 +498,7 @@ public:
     }
 
     void bind() final {
-        LOG_TRACE("bind texture / unfiform at slot %u -> %d", slot, textureId);
+        LOG_TRACE("bind texture / uniform at slot %u -> %d", slot, textureId);
         glActiveTexture(GL_TEXTURE0 + slot);
         glBindTexture(bindType, textureId);
         glUniform1i(uniformId, slot);
@@ -661,7 +509,7 @@ public:
     }
 
     void unbind() final {
-        LOG_TRACE("unbind texture / unfiform at slot %u", slot);
+        LOG_TRACE("unbind texture / uniform at slot %u", slot);
         glActiveTexture(GL_TEXTURE0 + slot);
         glBindTexture(bindType, 0);
         // restore active texture to the default slot
@@ -709,7 +557,7 @@ private:
             oss << "#extension GL_OES_EGL_image_external : require\n";
             texUniformType = "samplerExternalOES";
         }
-        oss << "precision mediump float;\n";
+        oss << "precision highp float;\n";
         for (unsigned i = 0; i < nTextures; ++i) {
             std::string texName = textureName(i);
             oss << "uniform " << texUniformType << " " << textureName(i) << ";\n";

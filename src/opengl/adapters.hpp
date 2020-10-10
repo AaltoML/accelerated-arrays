@@ -19,11 +19,27 @@
 #define log_error(...) do { std::fprintf(stderr, "ERROR: "); std::fprintf(stderr, ## __VA_ARGS__); std::fprintf(stderr, "\n"); } while (0)
 #endif
 
+// TODO: move somewhere else
+#define IS_OPENGL_ES
+
+#define ACCELERATED_ARRAYS_LOG_TRACE
+#ifdef ACCELERATED_ARRAYS_LOG_TRACE
+#define LOG_TRACE(...) log_debug(__FILE__ ": " __VA_ARGS__)
+#else
+#define LOG_TRACE(...) (void)0
+#endif
+
 namespace accelerated {
 struct ImageTypeSpec;
 
 namespace opengl {
 void checkError(const char *tag);
+
+// TODO: Integer formats would be preferable in some cases, but the support
+// seems to be limited (e.g., can't be read in glReadPixels)
+constexpr bool useGlIntegerFormats = false;
+
+int getTextureInternalFormat(const ImageTypeSpec &spec);
 
 class Binder {
 public:
