@@ -118,7 +118,6 @@ struct Image : ImageTypeSpec {
 
     typedef std::function< Future(std::vector<Image*> &inputs, Image &output) > Function;
 
-protected:
     /** Asynchronous read operation */
     virtual Future readRaw(std::uint8_t *outputData) = 0;
     /** Asyncronous write operation */

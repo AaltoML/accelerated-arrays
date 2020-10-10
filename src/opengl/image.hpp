@@ -9,7 +9,9 @@ class Image : public ::accelerated::Image {
 public:
     // OpenGL-specifics
     virtual int getTextureId() const = 0;
-    virtual bool supportsReadAndWrite() const = 0;
+    virtual bool supportsDirectRead() const = 0;
+    virtual bool supportsDirectWrite() const = 0;
+
     virtual FrameBuffer &getFrameBuffer() = 0;
 
     class Factory : public ::accelerated::Image::Factory {

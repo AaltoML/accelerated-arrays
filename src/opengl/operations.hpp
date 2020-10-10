@@ -1,3 +1,4 @@
+#pragma once
 #include "../standard_ops.hpp"
 
 namespace accelerated {

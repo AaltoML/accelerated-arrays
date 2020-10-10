@@ -37,6 +37,7 @@ protected:
         for (std::size_t i = 0; i < bpc; ++i) data[i + offset] = srcArray[i];
     }
 
+public:
     Future readRaw(std::uint8_t *outputData) final {
         return processor.enqueue([this, outputData]() {
             std::memcpy(outputData, data.data(), size());
@@ -49,7 +50,6 @@ protected:
         });
     }
 
-public:
     ImageImplementation(int w, int h, int channels, DataType dtype, Processor &p) :
         Image(w, h, channels, dtype), processor(p)
     {

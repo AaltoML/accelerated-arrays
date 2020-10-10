@@ -4,6 +4,7 @@
 
 #include "adapters.hpp"
 #include "image.hpp"
+#include "read_adapters.hpp"
 
 //#define ACCELERATED_ARRAYS_DEBUG_IMAGE
 #ifdef ACCELERATED_ARRAYS_DEBUG_IMAGE
@@ -39,7 +40,11 @@ public:
         return Future({});
     }
 
-    bool supportsReadAndWrite() const final {
+    bool supportsDirectRead() const final {
+        return false;
+    }
+
+    bool supportsDirectWrite() const final {
         return false;
     }
 
@@ -54,11 +59,13 @@ private:
     class Reference;
     std::mutex mutex;
     std::unordered_map<const Reference*, std::shared_ptr<FrameBuffer> > frameBuffers;
+    std::unique_ptr<operations::Factory> converterFactory;
 
 public:
     Processor &processor;
 
-    FrameBufferManager(Processor &p) : processor(p) {}
+    FrameBufferManager(Processor &p)
+    : converterFactory(operations::createFactory(p)), processor(p) {}
 
     Future enqueue(const Reference *ref, const std::function<void(FrameBuffer &)> &f) {
         return processor.enqueue([this, f, ref]() {
@@ -120,6 +127,7 @@ public:
 class FrameBufferManager::Reference : public Image {
 private:
     FrameBufferManager &manager;
+    std::function<Future(std::uint8_t*)> readAdpater;
 
 public:
     Reference(int w, int h, const ImageTypeSpec &spec, FrameBufferManager &m) : Image(w, h, spec), manager(m) {
@@ -141,7 +149,17 @@ public:
     }
 
     Future readRaw(std::uint8_t *outputData) final {
-        assert(supportsReadAndWrite());
+        if (!supportsDirectRead()) {
+            if (!readAdpater) {
+                log_warn("frame buffer ref %p does not support direct read, trying to create adapter buffer", (void*)this);
+                readAdpater = createReadAdpater(
+                    *this,
+                    manager.processor,
+                    manager,
+                    *manager.converterFactory);
+            }
+            return readAdpater(outputData);
+        }
         LOG_TRACE("reading frame buffer reference %p", (void*)this);
         return manager.enqueue(this, [outputData](FrameBuffer &fb) {
             fb.readPixels(outputData);
@@ -149,14 +167,14 @@ public:
     }
 
     Future writeRaw(const std::uint8_t *inputData) final {
-        assert(supportsReadAndWrite());
+        assert(supportsDirectWrite());
         LOG_TRACE("writing frame buffer reference %p", (void*)this);
         return manager.enqueue(this, [inputData](FrameBuffer &fb) {
             fb.writePixels(inputData);
         });
     }
 
-    bool supportsReadAndWrite() const final {
+    virtual bool supportsDirectRead() const final {
         // TODO: in OpenGL ES, only a limited subset of textures
         // support reading & writing directly, but this is not the case in
         // general in OpenGL
@@ -164,8 +182,12 @@ public:
         #ifdef USE_OPENGL_ES_ONLY
             return dataType == DataType::UINT8 && channels == 4;
         #else
-            return true;
+            return channels != 2;
         #endif
+    }
+
+    virtual bool supportsDirectWrite() const final {
+        return true;
     }
 
     FrameBuffer &getFrameBuffer() final {
