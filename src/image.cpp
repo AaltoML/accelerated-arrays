@@ -68,15 +68,44 @@ bool ImageTypeSpec::isIntegerType(DataType dtype) {
 
 bool ImageTypeSpec::isSigned(DataType dtype) {
     switch (dtype) {
+        case DataType::FLOAT32: return true;
+
         case DataType::UINT8: return false;
         case DataType::SINT8: return true;
         case DataType::UINT16: return false;
         case DataType::SINT16: return true;
         case DataType::UINT32: return false;
         case DataType::SINT32: return true;
-        case DataType::FLOAT32: return true;
+        case DataType::UFIXED8: return false;
+        case DataType::SFIXED8: return true;
+        case DataType::UFIXED16: return false;
+        case DataType::SFIXED16: return true;
+        case DataType::UFIXED32: return false;
+        case DataType::SFIXED32: return true;
         default: assert(false);
     }
     return false;
 }
+
+bool ImageTypeSpec::isFixedPoint(DataType dtype) {
+    switch (dtype) {
+        case DataType::UINT8: return false;
+        case DataType::SINT8: return false;
+        case DataType::UINT16: return false;
+        case DataType::SINT16: return false;
+        case DataType::UINT32: return false;
+        case DataType::SINT32: return false;
+        case DataType::FLOAT32: return false;
+
+        case DataType::UFIXED8: return true;
+        case DataType::SFIXED8: return true;
+        case DataType::UFIXED16: return true;
+        case DataType::SFIXED16: return true;
+        case DataType::UFIXED32: return true;
+        case DataType::SFIXED32: return true;
+        default: assert(false);
+    }
+    return false;
+}
+
 }

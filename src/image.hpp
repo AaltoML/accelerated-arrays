@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "future.hpp"
+#include "fixed_point.hpp"
 
 namespace accelerated {
 struct ImageTypeSpec {
@@ -25,7 +26,13 @@ struct ImageTypeSpec {
         SINT16,
         UINT32,
         SINT32,
-        FLOAT32
+        FLOAT32,
+        UFIXED8,
+        SFIXED8,
+        UFIXED16,
+        SFIXED16,
+        UFIXED32,
+        SFIXED32
     } dataType;
 
     /**
@@ -59,6 +66,7 @@ struct ImageTypeSpec {
     static double minValueOf(DataType dtype);
     static bool isIntegerType(DataType dtype);
     static bool isSigned(DataType dtype);
+    static bool isFixedPoint(DataType dtype);
 
     double minValue() const { return minValueOf(dataType); }
     double maxValue() const { return maxValueOf(dataType); }
@@ -134,7 +142,13 @@ struct Image : ImageTypeSpec {
     x(std::int16_t) \
     x(std::uint32_t) \
     x(std::int32_t) \
-    x(float)
+    x(float) \
+    x(FixedPoint<std::uint8_t>) \
+    x(FixedPoint<std::int8_t>) \
+    x(FixedPoint<std::uint16_t>) \
+    x(FixedPoint<std::int16_t>) \
+    x(FixedPoint<std::uint32_t>) \
+    x(FixedPoint<std::int32_t>)
 
 #define ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(x) \
     x(std::uint8_t, ImageTypeSpec::DataType::UINT8) \
@@ -143,7 +157,13 @@ struct Image : ImageTypeSpec {
     x(std::int16_t, ImageTypeSpec::DataType::SINT16) \
     x(std::uint32_t, ImageTypeSpec::DataType::UINT32) \
     x(std::int32_t, ImageTypeSpec::DataType::SINT32) \
-    x(float, ImageTypeSpec::DataType::FLOAT32)
+    x(float, ImageTypeSpec::DataType::FLOAT32) \
+    x(FixedPoint<std::uint8_t>, ImageTypeSpec::DataType::UFIXED8) \
+    x(FixedPoint<std::int8_t>, ImageTypeSpec::DataType::SFIXED8) \
+    x(FixedPoint<std::uint16_t>, ImageTypeSpec::DataType::UFIXED16) \
+    x(FixedPoint<std::int16_t>, ImageTypeSpec::DataType::SFIXED16) \
+    x(FixedPoint<std::uint32_t>, ImageTypeSpec::DataType::UFIXED32) \
+    x(FixedPoint<std::int32_t>, ImageTypeSpec::DataType::SFIXED32)
 
 #define Y(dtype, n) \
     template <> std::unique_ptr<Image> Image::Factory::create<dtype, n>(int w, int h)

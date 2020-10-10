@@ -57,7 +57,7 @@ template <class T> Unary fixedConvolution2D(const FixedConvolution2DSpec &spec) 
                 const auto &krow = spec.kernel.at(i);
                 for (int j = 0; j < int(krow.size()); ++j) {
                     const int x1 = x * spec.xStride + j + kernelXOffset;
-                    v += input.get<T>(x1, y1, c, spec.border) * krow.at(j);
+                    v += double(input.get<T>(x1, y1, c, spec.border)) * krow.at(j);
                     // std::cout << " x:" << x << " y:" << y << " c:" << c << " i:" << i << " j:"  << j
                     // << " x1:" << x1 << " y1:" << y1 << " : " << input.get<T>(x1, y1, c, spec.border) << " * " <<  krow.at(j) << std::endl;
                  }

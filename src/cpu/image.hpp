@@ -56,12 +56,12 @@ public:
     }
 
     template<class T> T get(int x, int y, int c, Border border) const {
-        if (!applyBorder(x, y, border)) return 0;
+        if (!applyBorder(x, y, border)) return static_cast<T>(double(0));
         return get<T>(x, y, c);
     }
 
     template<class T> T get(int x, int y, Border border) const {
-        if (!applyBorder(x, y, border)) return 0;
+        if (!applyBorder(x, y, border)) return static_cast<T>(double(0));
         return get<T>(x, y);
     }
 

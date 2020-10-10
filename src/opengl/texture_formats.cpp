@@ -20,6 +20,8 @@ int getTextureInternalFormat(const ImageTypeSpec &spec) {
         }
     }
     */
+    const bool allowLossy = true;
+    #define LOSSY(x) assert(allowLossy && #x); X(x)
 
     if (spec.channels == 1) {
         switch (spec.dataType) {
@@ -30,6 +32,17 @@ int getTextureInternalFormat(const ImageTypeSpec &spec) {
             case ImageTypeSpec::DataType::UINT32: X(GL_R32UI);
             case ImageTypeSpec::DataType::SINT32: X(GL_R32I);
             case ImageTypeSpec::DataType::FLOAT32: X(GL_R32F);
+            case ImageTypeSpec::DataType::UFIXED8: X(GL_R8);
+            case ImageTypeSpec::DataType::SFIXED8: X(GL_R8_SNORM);
+        #ifdef IS_OPENGL_ES
+            case ImageTypeSpec::DataType::UFIXED16: LOSSY(GL_R16F);
+            case ImageTypeSpec::DataType::SFIXED16: LOSSY(GL_R16F);
+        #else
+            case ImageTypeSpec::DataType::UFIXED16: X(GL_R16);
+            case ImageTypeSpec::DataType::SFIXED16: X(GL_R16_SNORM);
+        #endif
+            case ImageTypeSpec::DataType::UFIXED32: LOSSY(GL_R32F);
+            case ImageTypeSpec::DataType::SFIXED32: LOSSY(GL_R32F);
             default: break;
         }
     }
@@ -42,6 +55,17 @@ int getTextureInternalFormat(const ImageTypeSpec &spec) {
             case ImageTypeSpec::DataType::UINT32: X(GL_RG32UI);
             case ImageTypeSpec::DataType::SINT32: X(GL_RG32I);
             case ImageTypeSpec::DataType::FLOAT32: X(GL_RG32F);
+            case ImageTypeSpec::DataType::UFIXED8: X(GL_RG8);
+            case ImageTypeSpec::DataType::SFIXED8: X(GL_RG8_SNORM);
+        #ifdef IS_OPENGL_ES
+            case ImageTypeSpec::DataType::UFIXED16: LOSSY(GL_RG16F);
+            case ImageTypeSpec::DataType::SFIXED16: LOSSY(GL_RG16F);
+        #else
+            case ImageTypeSpec::DataType::UFIXED16: X(GL_RG16);
+            case ImageTypeSpec::DataType::SFIXED16: X(GL_RG16_SNORM);
+        #endif
+            case ImageTypeSpec::DataType::UFIXED32: LOSSY(GL_RG32F);
+            case ImageTypeSpec::DataType::SFIXED32: LOSSY(GL_RG32F);
             default: break;
         }
     }
@@ -54,6 +78,17 @@ int getTextureInternalFormat(const ImageTypeSpec &spec) {
             case ImageTypeSpec::DataType::UINT32: X(GL_RGB32UI);
             case ImageTypeSpec::DataType::SINT32: X(GL_RGB32I);
             case ImageTypeSpec::DataType::FLOAT32: X(GL_RGB32F);
+            case ImageTypeSpec::DataType::UFIXED8: X(GL_RGB8);
+            case ImageTypeSpec::DataType::SFIXED8: X(GL_RGB8_SNORM);
+        #ifdef IS_OPENGL_ES
+            case ImageTypeSpec::DataType::UFIXED16: LOSSY(GL_RGB16F);
+            case ImageTypeSpec::DataType::SFIXED16: LOSSY(GL_RGB16F);
+        #else
+            case ImageTypeSpec::DataType::UFIXED16: X(GL_RGB16);
+            case ImageTypeSpec::DataType::SFIXED16: X(GL_RGB16_SNORM);
+        #endif
+            case ImageTypeSpec::DataType::UFIXED32: LOSSY(GL_RGB32F);
+            case ImageTypeSpec::DataType::SFIXED32: LOSSY(GL_RGB32F);
             default: break;
         }
     }
@@ -66,87 +101,25 @@ int getTextureInternalFormat(const ImageTypeSpec &spec) {
             case ImageTypeSpec::DataType::UINT32: X(GL_RGBA32UI);
             case ImageTypeSpec::DataType::SINT32: X(GL_RGBA32I);
             case ImageTypeSpec::DataType::FLOAT32: X(GL_RGBA32F);
-            default: break;
-        }
-    }
-
-    /*
-    const bool allowLossy = true;
-    #define LOSSY(x) assert(allowLossy && #x); X(x)
-
-    if (spec.channels == 1) {
-        switch (spec.dataType) {
-            case ImageTypeSpec::DataType::FLOAT32: X(GL_R32F);
-            case ImageTypeSpec::DataType::UINT8: X(GL_R8);
-            case ImageTypeSpec::DataType::SINT8: X(GL_R8_SNORM);
+            case ImageTypeSpec::DataType::UFIXED8: X(GL_RGBA8);
+            case ImageTypeSpec::DataType::SFIXED8: X(GL_RGBA8_SNORM);
         #ifdef IS_OPENGL_ES
-            case ImageTypeSpec::DataType::UINT16: LOSSY(GL_R16F);
-            case ImageTypeSpec::DataType::SINT16: LOSSY(GL_R16F);
+            case ImageTypeSpec::DataType::UFIXED16: LOSSY(GL_RGBA16F);
+            case ImageTypeSpec::DataType::SFIXED16: LOSSY(GL_RGBA16F);
         #else
-            case ImageTypeSpec::DataType::UINT16: X(GL_R16);
-            case ImageTypeSpec::DataType::SINT16: X(GL_R16_SNORM);
+            case ImageTypeSpec::DataType::UFIXED16: X(GL_RGBA16);
+            case ImageTypeSpec::DataType::SFIXED16: X(GL_RGBA16_SNORM);
         #endif
-            case ImageTypeSpec::DataType::UINT32: LOSSY(GL_R32F);
-            case ImageTypeSpec::DataType::SINT32: LOSSY(GL_R32F);
-            default: break;
-        }
-    }
-    else if (spec.channels == 2) {
-        switch (spec.dataType) {
-            case ImageTypeSpec::DataType::FLOAT32: X(GL_RG32F);
-            case ImageTypeSpec::DataType::UINT8: X(GL_RG8);
-            case ImageTypeSpec::DataType::SINT8: X(GL_RG8_SNORM);
-        #ifdef IS_OPENGL_ES
-            case ImageTypeSpec::DataType::UINT16: LOSSY(GL_RG16F);
-            case ImageTypeSpec::DataType::SINT16: LOSSY(GL_RG16F);
-        #else
-            case ImageTypeSpec::DataType::UINT16: X(GL_RG16);
-            case ImageTypeSpec::DataType::SINT16: X(GL_RG16_SNORM);
-        #endif
-            case ImageTypeSpec::DataType::UINT32: LOSSY(GL_RG32F);
-            case ImageTypeSpec::DataType::SINT32: LOSSY(GL_RG32F);
-            default: break;
-        }
-    }
-    else if (spec.channels == 3) {
-        switch (spec.dataType) {
-            case ImageTypeSpec::DataType::FLOAT32: X(GL_RGB32F);
-            case ImageTypeSpec::DataType::UINT8: X(GL_RGB8);
-            case ImageTypeSpec::DataType::SINT8: X(GL_RGB8_SNORM);
-        #ifdef IS_OPENGL_ES
-            case ImageTypeSpec::DataType::UINT16: LOSSY(GL_RGB16F);
-            case ImageTypeSpec::DataType::SINT16: LOSSY(GL_RGB16F);
-        #else
-            case ImageTypeSpec::DataType::UINT16: X(GL_RGB16);
-            case ImageTypeSpec::DataType::SINT16: X(GL_RGB16_SNORM);
-        #endif
-            case ImageTypeSpec::DataType::UINT32: LOSSY(GL_RGB32F);
-            case ImageTypeSpec::DataType::SINT32: LOSSY(GL_RGB32F);
-            default: break;
-        }
-    }
-    else if (spec.channels == 4) {
-        switch (spec.dataType) {
-            case ImageTypeSpec::DataType::FLOAT32: X(GL_RGBA32F);
-            case ImageTypeSpec::DataType::UINT8: X(GL_RGBA8);
-            case ImageTypeSpec::DataType::SINT8: X(GL_RGBA8_SNORM);
-        #ifdef IS_OPENGL_ES
-            case ImageTypeSpec::DataType::UINT16: LOSSY(GL_RGBA16F);
-            case ImageTypeSpec::DataType::SINT16: LOSSY(GL_RGBA16F);
-        #else
-            case ImageTypeSpec::DataType::UINT16: X(GL_RGBA16);
-            case ImageTypeSpec::DataType::SINT16: X(GL_RGBA16_SNORM);
-        #endif
-            case ImageTypeSpec::DataType::UINT32: LOSSY(GL_RGBA32F);
-            case ImageTypeSpec::DataType::SINT32: LOSSY(GL_RGBA32F);
+            case ImageTypeSpec::DataType::UFIXED32: LOSSY(GL_RGBA32F);
+            case ImageTypeSpec::DataType::SFIXED32: LOSSY(GL_RGBA32F);
             default: break;
         }
     }
 
     #undef LOSSY
-    */
-    assert(false && "no suitable internal format");
     #undef X
+
+    assert(false && "no suitable internal format");
     assert(false && "not implemented");
     return -1;
 }
@@ -154,7 +127,7 @@ int getTextureInternalFormat(const ImageTypeSpec &spec) {
 int getCpuFormat(const ImageTypeSpec &spec) {
     #define X(x) LOG_TRACE("getCpuFormat:%s", #x); return x
     // TODO: also support fixed-point types
-    if (spec.dataType == ImageTypeSpec::DataType::FLOAT32) {
+    if (spec.dataType == ImageTypeSpec::DataType::FLOAT32 || ImageTypeSpec::isFixedPoint(spec.dataType)) {
         switch (spec.channels) {
             case 1: X(GL_RED);
             case 2: X(GL_RG);
@@ -236,6 +209,13 @@ int getCpuType(const ImageTypeSpec &spec) {
         case ImageTypeSpec::DataType::UINT32: X(GL_UNSIGNED_INT);
         case ImageTypeSpec::DataType::SINT32: X(GL_INT);
         case ImageTypeSpec::DataType::FLOAT32: X(GL_FLOAT);
+        // check these...
+        case ImageTypeSpec::DataType::UFIXED8: X(GL_UNSIGNED_BYTE);
+        case ImageTypeSpec::DataType::SFIXED8: X(GL_BYTE);
+        case ImageTypeSpec::DataType::UFIXED16: X(GL_UNSIGNED_SHORT);
+        case ImageTypeSpec::DataType::SFIXED16: X(GL_SHORT);
+        case ImageTypeSpec::DataType::UFIXED32: X(GL_UNSIGNED_INT);
+        case ImageTypeSpec::DataType::SFIXED32: X(GL_INT);
     }
     #undef X
     assert(false);

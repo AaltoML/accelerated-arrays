@@ -39,13 +39,13 @@ TEST_CASE( "Convolution 2D", "[accelerated-arrays]" ) {
     #endif
 
     for (auto &it : items) {
-        std::vector<std::int16_t> in = {
+        std::vector<FixedPoint<std::int16_t>> in = {
             1,2,  3,4,  5,0,
             0,0,  9,0,  0,6,
             7,0,  0,0,  0,0,
             0,0,  0,8,  0,9
         };
-        auto image = it.img->create<std::int16_t, 2>(3, 4);
+        auto image = it.img->create<FixedPoint<std::int16_t>, 2>(3, 4);
         image->write(in).wait();
 
         auto convolution = it.ops->create(
@@ -67,11 +67,11 @@ TEST_CASE( "Convolution 2D", "[accelerated-arrays]" ) {
         // just for checking the output
         auto checkerProc = Processor::createInstant();
         auto factory = cpu::Image::createFactory(*checkerProc);
-        auto checkImage = factory->create<std::int16_t, 2>(3, 4);
+        auto checkImage = factory->create<FixedPoint<std::int16_t>, 2>(3, 4);
         // for (auto &el : outData) std::cout << "out-data:" << int(el) << std::endl;
         checkImage->write(outData).wait();
 
         const auto &outCpu = cpu::Image::castFrom(*checkImage);
-        REQUIRE(outCpu.get<std::int16_t>(1, 1, 1) == int((-2 + 3*6) / 3.0 + 0.5));
+        REQUIRE(outCpu.get<FixedPoint<std::int16_t>>(1, 1, 1).value == int((-2 + 3*6) / 3.0 + 0.5));
     }
 }

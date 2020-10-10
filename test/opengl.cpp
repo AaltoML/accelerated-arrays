@@ -45,7 +45,7 @@ TEST_CASE( "image", "[accelerated-arrays-opengl]" ) {
     auto processor = opengl::createGLFWProcessor();
     auto factory = opengl::Image::createFactory(*processor);
 
-    typedef std::uint16_t Type;
+    typedef FixedPoint<std::uint16_t> Type;
 
     auto image = factory->create<Type, 4>(20, 30);
 
@@ -55,7 +55,7 @@ TEST_CASE( "image", "[accelerated-arrays-opengl]" ) {
 
     image->write(inBuf); // single-threaded, no need to wait here
     image->read(outBuf).wait();
-    REQUIRE(outBuf[0] == 111);
+    REQUIRE(outBuf[0].value == 111);
 
     auto ops = opengl::operations::createFactory(*processor);
     auto fill = ops->create(
@@ -64,5 +64,5 @@ TEST_CASE( "image", "[accelerated-arrays-opengl]" ) {
 
     operations::callNullary(fill, *image).wait();
     image->read(outBuf).wait();
-    REQUIRE(int(outBuf.back()) == 204);
+    REQUIRE(outBuf.back().value == 204);
 }
