@@ -4,7 +4,7 @@
 #include "adapters.hpp"
 #include "../image.hpp"
 
-//#define ACCELERATED_ARRAYS_DEBUG_ADAPTERS
+#define ACCELERATED_ARRAYS_DEBUG_ADAPTERS
 #ifdef ACCELERATED_ARRAYS_DEBUG_ADAPTERS
 #define LOG_TRACE(...) log_debug(__VA_ARGS__)
 #else
@@ -380,6 +380,9 @@ public:
         texture.destroy();
     }
 
+    int getWidth() const final { return width; }
+    int getHeight() const final { return height; }
+
     ~FrameBufferImplementation() {
         if (id != 0) {
             log_warn("leaking frame buffer %d", id);
@@ -616,11 +619,14 @@ public:
         program.unbind();
     }
 
-    void call() final {
+    void call(FrameBuffer &frameBuffer) final {
         // might typically be enabled, thus checking
         GlFlagSetter<GL_DEPTH_TEST, false> noDepthTest;
         GlFlagSetter<GL_BLEND, false> noBlend;
         // GlFlagSetter<GL_ALPHA_TEST, false> noAlphaTest;
+
+        Binder frameBufferBinder(frameBuffer);
+        frameBuffer.setViewport();
 
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         checkError(__FUNCTION__);
@@ -634,13 +640,13 @@ public:
 class TextureUniformBinder : public Binder::Target {
 private:
     const unsigned slot;
-    const GLuint bindType, uniformId;
-    int textureId;
+    const GLuint bindType, uniformId, sizeUniformId;
+    int textureId = -1, width = -1, height = -1;
 
 public:
-    TextureUniformBinder(unsigned slot, GLuint bindType, GLuint uniformId)
-    : slot(slot), bindType(bindType), uniformId(uniformId), textureId(-1) {
-        LOG_TRACE("got texture uniform %d for slot %u", uniformId, slot);
+    TextureUniformBinder(unsigned slot, GLuint bindType, GLuint uniformId, GLuint sizeUniformId = 0)
+    : slot(slot), bindType(bindType), uniformId(uniformId), sizeUniformId(sizeUniformId) {
+        LOG_TRACE("got texture uniform %d & size uniform %d for slot %u", uniformId, sizeUniformId, slot);
     }
 
     void bind() final {
@@ -648,6 +654,10 @@ public:
         glActiveTexture(GL_TEXTURE0 + slot);
         glBindTexture(bindType, textureId);
         glUniform1i(uniformId, slot);
+        if (sizeUniformId != 0) {
+            LOG_TRACE("setting texture size uniform to %d x %d", width, height);
+            glUniform2f(sizeUniformId, width, height);
+        }
     }
 
     void unbind() final {
@@ -658,8 +668,10 @@ public:
         glActiveTexture(GL_TEXTURE0);
     }
 
-    TextureUniformBinder &setTextureId(int id) {
+    TextureUniformBinder &setTextureIdAndSize(int id, int w, int h) {
         textureId = id;
+        width = w;
+        height = h;
         return *this;
     }
 };
@@ -668,6 +680,7 @@ class GlslPipelineImplementation : public GlslPipeline {
 private:
     const unsigned nTextures;
     const GLuint bindType;
+    GLuint outSizeUniform;
     GlslFragmentShaderImplementation program;
     std::vector<TextureUniformBinder> textureBinders;
 
@@ -681,7 +694,15 @@ private:
         return oss.str();
     }
 
-    std::string buildShaderSource(const char *fragmentMain) const {
+    std::string textureSizeName(unsigned index) const {
+        return textureName(index) + "Size";
+    }
+
+    static std::string outSizeName() {
+        return "u_outSize";
+    }
+
+    std::string buildShaderSource(const char *fragmentMain, bool withSizes) const {
         std::ostringstream oss;
         std::string texUniformType = "sampler2D";
         if (bindType == GL_TEXTURE_EXTERNAL_OES) {
@@ -690,9 +711,11 @@ private:
         }
         oss << "precision mediump float;\n";
         for (unsigned i = 0; i < nTextures; ++i) {
+            std::string texName = textureName(i);
             oss << "uniform " << texUniformType << " " << textureName(i) << ";\n";
+            if (withSizes) oss << "uniform vec2 " << textureSizeName(i) << ";\n";
         }
-
+        if (withSizes) oss << "uniform vec2 " << outSizeName() << ";\n";
         oss << "varying vec2 v_texCoord;\n";
         oss << fragmentMain;
         oss << std::endl;
@@ -700,28 +723,42 @@ private:
     }
 
 public:
-    GlslPipelineImplementation(const char *fragmentMain, unsigned nTextures, GLuint bindType)
+    GlslPipelineImplementation(const char *fragmentMain, unsigned nTextures, GLuint bindType, bool withSizes = true)
     :
         nTextures(nTextures),
         bindType(bindType),
-        program(buildShaderSource(fragmentMain).c_str(), bindType != 0)
+        outSizeUniform(0),
+        program(buildShaderSource(fragmentMain, withSizes).c_str(), bindType != 0)
     {
+        if (withSizes) {
+            outSizeUniform = glGetUniformLocation(program.getId(), outSizeName().c_str());
+        }
         for (unsigned i = 0; i < nTextures; ++i) {
             textureBinders.push_back(TextureUniformBinder(
                 i, bindType,
-                glGetUniformLocation(program.getId(), textureName(i).c_str())
+                glGetUniformLocation(program.getId(), textureName(i).c_str()),
+                withSizes ? glGetUniformLocation(program.getId(), textureSizeName(i).c_str()) : 0
             ));
         }
+        checkError(__FUNCTION__);
     }
 
-    Binder::Target &bindTexture(unsigned index, int textureId) final {
-        return textureBinders.at(index).setTextureId(textureId);
+    Binder::Target &bindTexture(unsigned index, int textureId, int w, int h) final {
+        return textureBinders.at(index).setTextureIdAndSize(textureId, w, h);
+    }
+
+    void call(FrameBuffer &frameBuffer) final {
+        if (outSizeUniform) {
+            LOG_TRACE("setting out size uniform");
+            glUniform2f(outSizeUniform, frameBuffer.getWidth(), frameBuffer.getHeight());
+        }
+        checkError(__FUNCTION__);
+        program.call(frameBuffer);
     }
 
     void destroy() final { program.destroy(); }
     void bind() final { program.bind(); }
     void unbind() final { program.unbind(); }
-    void call() final { program.call(); }
     int getId() const final { return program.getId(); }
 };
 
@@ -747,8 +784,8 @@ std::unique_ptr<GlslFragmentShader> GlslFragmentShader::create(const char *frage
     return std::unique_ptr<GlslFragmentShader>(new GlslFragmentShaderImplementation(fragementShaderSource));
 }
 
-std::unique_ptr<GlslPipeline> GlslPipeline::create(unsigned nTextures, const char *fragmentMain) {
-    return std::unique_ptr<GlslPipeline>(new GlslPipelineImplementation(fragmentMain, nTextures, GL_TEXTURE_2D));
+std::unique_ptr<GlslPipeline> GlslPipeline::create(unsigned nTextures, const char *fragmentMain, bool withSizes) {
+    return std::unique_ptr<GlslPipeline>(new GlslPipelineImplementation(fragmentMain, nTextures, GL_TEXTURE_2D, withSizes));
 }
 
 std::unique_ptr<GlslPipeline> GlslPipeline::createWithExternalTexture(const char *fragmentMain) {
@@ -756,7 +793,7 @@ std::unique_ptr<GlslPipeline> GlslPipeline::createWithExternalTexture(const char
 }
 
 std::unique_ptr<GlslPipeline> GlslPipeline::createWithoutTexCoords(const char *fragmentMain) {
-    return std::unique_ptr<GlslPipeline>(new GlslPipelineImplementation(fragmentMain, 0, 0));
+    return std::unique_ptr<GlslPipeline>(new GlslPipelineImplementation(fragmentMain, 0, 0, false));
 }
 
 }

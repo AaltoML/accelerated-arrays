@@ -29,6 +29,10 @@ double minDataTypeValue(ImageTypeSpec::DataType dtype) {
     return ImageTypeSpec::minValueOf(dtype);
 }
 
+Binder::Target &bindImage(GlslPipeline &pipeline, unsigned slot, Image &image) {
+    return pipeline.bindTexture(slot, image.getTextureId(), image.width, image.height);
+}
+
 namespace glsl {
 template <class T> std::string wrapToVec(const std::vector<T> &values) {
     assert(!values.empty() && values.size() <= 4);
@@ -75,45 +79,47 @@ std::string convertToFloatOutputValue(const std::string &value, ImageTypeSpec::D
 }
 }
 
-std::unique_ptr< Shader<sync::Nullary> > fill(const FillSpec &spec, const ImageTypeSpec &imageSpec) {
+Shader<Nullary>::Builder fill(const FillSpec &spec, const ImageTypeSpec &imageSpec) {
     assert(!spec.value.empty());
 
-    std::string fragmentShaderSource;
+    // GLSL shader source is built in syncrhonously on the calling thread
+    // to minimize unnecessary stuff on the GL thread, even though this
+    // would not matter so much since this operation is quite lightweight
+    std::string fragmentShaderBody;
     {
         std::ostringstream oss;
         oss << "void main() {\n";
         oss << "gl_FragColor." << glsl::swizzleSubset(imageSpec.channels) << " = ";
         oss << glsl::convertToFloatOutputValue(glsl::wrapToVec(spec.value), imageSpec.dataType) << ";\n";
         oss << "}\n";
-        fragmentShaderSource = oss.str();
+        fragmentShaderBody = oss.str();
     }
 
-    std::unique_ptr< Shader<sync::Nullary> > shader(new Shader<sync::Nullary>);
-    shader->resources = GlslPipeline::createWithoutTexCoords(fragmentShaderSource.c_str());
-    GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
+    return [fragmentShaderBody]() {
+        // GLSL compilation happens in the GL thread
+        std::unique_ptr< Shader<Nullary> > shader(new Shader<Nullary>);
+        shader->resources = GlslPipeline::createWithoutTexCoords(fragmentShaderBody.c_str());
+        GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
 
-    shader->function = [&pipeline](Image &output) {
-        Binder binder(pipeline);
-        auto &fbo = output.getFrameBuffer();
-        Binder frameBufferBinder(fbo);
-        fbo.setViewport();
-        pipeline.call();
+        shader->function = [&pipeline](Image &output) {
+            // GLSL shader invocation also happens in the GL thread
+            Binder binder(pipeline);
+            pipeline.call(output.getFrameBuffer());
+        };
+
+        return shader;
     };
-
-    return shader;
 }
 
-std::unique_ptr< Shader<sync::Unary> > fixedConvolution2D(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec) {
+Shader<Unary>::Builder fixedConvolution2D(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec) {
     assert(!spec.kernel.empty());
 
-    std::string fragmentShaderSource;
+    std::string fragmentShaderBody;
     {
         std::ostringstream oss;
 
         const int kernelH = spec.kernel.size();
         const int kernelW = spec.kernel.at(0).size();
-
-        oss << "uniform vec2 pixelDelta;\n";
 
         oss << "#define KERNEL_H " << kernelH << "\n";
         oss << "#define KERNEL_W " << kernelW << "\n";
@@ -131,15 +137,29 @@ std::unique_ptr< Shader<sync::Unary> > fixedConvolution2D(const FixedConvolution
         const auto vtype = glsl::valueType(imageSpec.channels);
         const auto swiz = glsl::swizzleSubset(imageSpec.channels);
 
-        assert(spec.xStride == 1 && spec.yStride == 1); // TODO
-        oss << "const vec2 beta = vec2(" << spec.getKernelXOffset() << ", " << spec.getKernelYOffset() << ");\n";
+        // NOTE: this is a recurring problem in many kernels, could make a
+        // suitable helper
+
+        // texCoord = (ix + 0.5) / width_out
+        // => ix = texCoord*width_out - 0.5
+        // targetTexCoord = (ix * xStride + jx + xOffs + 0.5) / width_in
+        //  = ((texCoord*width_out - 0.5) * xStride + jx + xOffs + 0.5) / width_in
+        //  = ((width_out*xStride) * texCoord  + jx + xOffs + 0.5 * (1 - xStride)) / width_in
+        // = (alpha * texCoord + jx + pixelOffset) / width_in
+
+        const float xOffs = spec.getKernelXOffset() + 0.5 * (1 - spec.xStride);
+        const float yOffs = spec.getKernelYOffset() + 0.5 * (1 - spec.yStride);
+
+        oss << "const vec2 stride = vec2(" << spec.xStride << ", " << spec.yStride << ");\n";
+        oss << "const vec2 pixelOffset = vec2(" << xOffs << ", " << yOffs << ");\n";
 
         oss << "void main() {\n";
+        oss << "vec2 alpha = stride * u_outSize;\n";
         oss << vtype << " v = " << vtype << "(0);\n";
         oss << "for (int i = 0; i < KERNEL_H; i++) {\n";
         oss << "for (int j = 0; j < KERNEL_W; j++) {\n";
         oss << "    float k = kernel[i * KERNEL_W + j];\n";
-        oss << "    vec2 coord = v_texCoord + (vec2(float(j), float(i)) + beta) * pixelDelta;\n";
+        oss << "    vec2 coord = (alpha * v_texCoord + (vec2(float(j), float(i)) + pixelOffset)) / u_textureSize;\n";
         oss << "    v += k * texture2D(u_texture, coord)." << swiz << ";\n";
         oss << "}\n";
         oss << "}\n";
@@ -147,26 +167,22 @@ std::unique_ptr< Shader<sync::Unary> > fixedConvolution2D(const FixedConvolution
         oss << glsl::convertToFloatOutputValue("v", imageSpec.dataType) << ";\n";
         oss << "}\n";
 
-        fragmentShaderSource = oss.str();
+        fragmentShaderBody = oss.str();
     }
 
-    std::unique_ptr< Shader<sync::Unary> > shader(new Shader<sync::Unary>);
-    shader->resources = GlslPipeline::create(1, fragmentShaderSource.c_str());
-    GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
+    return [fragmentShaderBody]() {
+        std::unique_ptr< Shader<Unary> > shader(new Shader<Unary>);
+        shader->resources = GlslPipeline::create(1, fragmentShaderBody.c_str());
+        GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
 
-    shader->function = [&pipeline](Image &input, Image &output) {
-        Binder binder(pipeline);
-        Binder inputBinder(pipeline.bindTexture(0, input.getTextureId()));
-        auto &fbo = output.getFrameBuffer();
-        Binder frameBufferBinder(fbo);
+        shader->function = [&pipeline](Image &input, Image &output) {
+            Binder binder(pipeline);
+            Binder inputBinder(bindImage(pipeline, 0, input));
+            pipeline.call(output.getFrameBuffer());
+        };
 
-        // TODO: set uniform
-
-        fbo.setViewport();
-        pipeline.call();
+        return shader;
     };
-
-    return shader;
 }
 
 class GpuFactory : public Factory {
@@ -175,7 +191,7 @@ private:
 
     class ShaderWrapper {
     private:
-        typedef Shader<sync::NAry> S;
+        typedef Shader<NAry> S;
         Processor &processor;
         std::shared_ptr< S > shader;
 
@@ -197,7 +213,7 @@ private:
             }
         }
 
-        sync::NAry &get() {
+        NAry &get() {
             // should never be called at the same time with other actions
             std::shared_ptr<S> tmp = std::atomic_load(&shader);
             assert(tmp && tmp->function);
@@ -208,7 +224,7 @@ private:
 public:
     GpuFactory(Processor &processor) : processor(processor) {}
 
-    Function wrapNAry(const Shader<sync::NAry>::Builder &builder) final {
+    Function wrapNAry(const Shader<NAry>::Builder &builder) final {
         std::shared_ptr<ShaderWrapper> wrapper(new ShaderWrapper(processor));
         processor.enqueue([builder, wrapper]() { wrapper->initialize(builder()); });
         return ::accelerated::operations::sync::wrap<Image>([wrapper](Image **inputs, int nInputs, Image &output) {
@@ -216,7 +232,7 @@ public:
         }, processor);
     }
 
-    Function wrapNAryChecked(const Shader<sync::NAry>::Builder &builder, const ImageTypeSpec &spec) final {
+    Function wrapNAryChecked(const Shader<NAry>::Builder &builder, const ImageTypeSpec &spec) final {
         checkSpec(spec);
         std::shared_ptr<ShaderWrapper> wrapper(new ShaderWrapper(processor));
         processor.enqueue([builder, wrapper]() { wrapper->initialize(builder()); });
@@ -226,11 +242,11 @@ public:
     }
 
     Function create(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec) final {
-        return wrapChecked<sync::Unary>([spec, imageSpec]() { return fixedConvolution2D(spec, imageSpec); }, imageSpec);
+        return wrapChecked<Unary>(fixedConvolution2D(spec, imageSpec), imageSpec);
     }
 
     Function create(const FillSpec &spec, const ImageTypeSpec &imageSpec) final {
-        return wrapChecked<sync::Nullary>([spec, imageSpec]() { return fill(spec, imageSpec); }, imageSpec);
+        return wrapChecked<Nullary>(fill(spec, imageSpec), imageSpec);
     }
 };
 }

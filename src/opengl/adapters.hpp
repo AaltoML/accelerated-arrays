@@ -63,6 +63,9 @@ struct Destroyable {
 struct FrameBuffer : Destroyable, Binder::Target {
     static std::unique_ptr<FrameBuffer> create(int w, int h, const ImageTypeSpec &spec);
 
+    virtual int getWidth() const = 0;
+    virtual int getHeight() const = 0;
+
     // these bind the frame buffer automatically
     virtual void readPixels(uint8_t *pixels) = 0;
     virtual void writePixels(const uint8_t *pixels) = 0;
@@ -89,18 +92,18 @@ struct GlslProgram : Destroyable, Binder::Target {
  */
 struct GlslFragmentShader : GlslProgram {
     static std::unique_ptr<GlslFragmentShader> create(const char *fragmentShaderSource);
-    virtual void call() = 0;
+    virtual void call(FrameBuffer &fb) = 0;
 };
 
 /**
  * Default GlslFragmentShader with N input textures
  */
 struct GlslPipeline : GlslFragmentShader {
-    static std::unique_ptr<GlslPipeline> create(unsigned nTextures, const char *fragmentMain);
+    static std::unique_ptr<GlslPipeline> create(unsigned nTextures, const char *fragmentMain, bool withSizes = true);
     static std::unique_ptr<GlslPipeline> createWithoutTexCoords(const char *fragmentMain);
     static std::unique_ptr<GlslPipeline> createWithExternalTexture(const char *fragmentMain);
 
-    virtual Binder::Target &bindTexture(unsigned index, int textureId) = 0;
+    virtual Binder::Target &bindTexture(unsigned index, int textureId, int width, int height) = 0;
 };
 
 }

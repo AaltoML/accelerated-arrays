@@ -7,12 +7,10 @@ class Image;
 struct Destroyable;
 
 namespace operations {
-namespace sync {
 typedef std::function< void(Image **inputs, int nInputs, Image &output) > NAry;
 typedef std::function< void(Image &output) > Nullary;
 typedef std::function< void(Image &input, Image &output) > Unary;
 typedef std::function< void(Image &a, Image &b, Image &output) > Binary;
-}
 
 template <class F> struct Shader {
     /** Will be invoked in the GL thread */
@@ -33,8 +31,8 @@ public:
      * shader object it creates will also be accessed / called in the GL
      * thread.
      */
-    virtual ::accelerated::operations::Function wrapNAry(const Shader<sync::NAry>::Builder &builder) = 0;
-    virtual ::accelerated::operations::Function wrapNAryChecked(const Shader<sync::NAry>::Builder &builder, const ImageTypeSpec &spec) = 0;
+    virtual ::accelerated::operations::Function wrapNAry(const Shader<NAry>::Builder &builder) = 0;
+    virtual ::accelerated::operations::Function wrapNAryChecked(const Shader<NAry>::Builder &builder, const ImageTypeSpec &spec) = 0;
 
     template <class T> ::accelerated::operations::Function wrap(const typename Shader<T>::Builder &builder) {
         return wrapNAry(convertToNAry<T>(builder));
@@ -45,10 +43,10 @@ public:
     }
 
 private:
-    template <class T> static Shader<sync::NAry>::Builder convertToNAry(const typename Shader<T>::Builder &otherAryBuilder) {
+    template <class T> static Shader<NAry>::Builder convertToNAry(const typename Shader<T>::Builder &otherAryBuilder) {
         return [otherAryBuilder]() {
            auto otherAry = otherAryBuilder();
-           std::unique_ptr< Shader<sync::NAry> > r(new Shader<sync::NAry>());
+           std::unique_ptr< Shader<NAry> > r(new Shader<NAry>());
            r->resources = std::move(otherAry->resources);
            r->function = ::accelerated::operations::sync::convert(otherAry->function);
            return r;
