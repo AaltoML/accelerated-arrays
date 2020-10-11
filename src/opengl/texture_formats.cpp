@@ -33,7 +33,7 @@ int getTextureInternalFormat(const ImageTypeSpec &spec) {
         }
     }
     */
-    const bool allowLossy = true;
+    const bool allowLossy = false;
     #define LOSSY(x) assert(allowLossy && #x); X(x)
 
     if (spec.channels == 1) {
@@ -214,8 +214,12 @@ int getReadPixelFormat(const ImageTypeSpec &spec) {
         switch (spec.channels) {
             case 1: X(GL_RED);
             case 2:
+            #ifndef ACCELERATED_ARRAYS_USE_OPENGL_ES
+            #ifndef ACCELERATED_ARRAYS_DODGY_READS
                 // may work just fine in practice
                 log_warn("OpenGL spec does not allow reading 2-channel textures directly");
+            #endif
+            #endif
                 X(GL_RG);
             case 3: X(GL_RGB);
             case 4: X(GL_RGBA);

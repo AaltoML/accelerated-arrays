@@ -171,11 +171,17 @@ public:
         // TODO: in OpenGL ES, only a limited subset of textures
         // support reading & writing directly, but this is not the case in
         // general in OpenGL
-        // TODO: not correct
         #ifdef ACCELERATED_ARRAYS_USE_OPENGL_ES
-            return dataType == DataType::UINT8 && channels == 4;
+            #ifdef ACCELERATED_ARRAYS_MAX_COMPATIBILITY_READS
+                if (channels != 4 || bytesPerChannel() != 1) return false;
+            #endif
+            return bytesPerChannel() != 2;
         #else
-            return channels != 2;
+            #ifdef ACCELERATED_ARRAYS_DODGY_READS
+                return true;
+            #else
+                return channels != 2;
+            #endif
         #endif
     }
 

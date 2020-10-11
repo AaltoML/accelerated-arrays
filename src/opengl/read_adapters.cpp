@@ -108,8 +108,14 @@ std::function<Future(std::uint8_t*)> createReadAdpater(
     int targetChannels = image.channels;
 
     #ifdef ACCELERATED_ARRAYS_USE_OPENGL_ES
-        targetChannels = 4;
-        targetDataType = ImageTypeSpec::DataType::UINT8;
+        assert(image.bytesPerChannel() != 2);
+        #ifdef ACCELERATED_ARRAYS_MAX_COMPATIBILITY_READS
+            assert(image.bytesPerChannel() == 1);
+            targetChannels = 4;
+        #endif
+        #ifndef ACCELERATED_ARRAYS_DODGY_READS
+        assert(!ImageTypeSpec::isSigned(image.dataType));
+        #endif
     #else
         if (image.channels == 2) targetChannels = 4;
     #endif

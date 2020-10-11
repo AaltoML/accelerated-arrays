@@ -39,8 +39,9 @@ if (WITH_OPENGL)
 
   if (WITH_OPENGL_ES)
     list(APPEND LIBRARY_DEPS EGL) # TODO check
-    #list(APPEND LIBRARY_DEPS GELSv2)
-    list(APPEND LIBRARY_DEPS GELSv3) # TODO
+    #list(APPEND LIBRARY_DEPS GL)
+    list(APPEND LIBRARY_DEPS GLESv2)
+    #list(APPEND LIBRARY_DEPS GLESv3) # TODO
   else()
     list(APPEND LIBRARY_DEPS GL)
   endif()
@@ -51,8 +52,12 @@ add_library(${LIBNAME} ${SRC_FILES})
 target_link_libraries(${LIBNAME} ${LIBRARY_DEPS})
 
 if (WITH_OPENGL_ES)
-  add_target_definitions(${LIBNAME} "-DACCELERATED_ARRAYS_USE_OPENGL_ES")
+  target_compile_definitions(${LIBNAME} PRIVATE "-DACCELERATED_ARRAYS_USE_OPENGL_ES")
 endif()
+
+# Note, also consider using these flags
+# ACCELERATED_ARRAYS_DODGY_READS
+# ACCELERATED_ARRAYS_MAX_COMPATIBILITY_READS
 
 install(TARGETS ${LIBNAME}
   ARCHIVE DESTINATION lib

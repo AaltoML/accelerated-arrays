@@ -552,9 +552,19 @@ public:
 
         if (ImageTypeSpec::isFixedPoint(output.dataType) && ImageTypeSpec::isSigned(output.dataType)) {
             // https://www.reddit.com/r/opengl/comments/bqe1jo/how_to_render_to_a_snorm_texture/
-            log_warn("SNORM render target requires GL bug fixes only found on Reddit. Use with caution.");
-            // constexpr int GL_CLAMP_FRAGMENT_COLOR = 0x891B;
-            glClampColor(GL_CLAMP_FRAGMENT_COLOR, GL_FALSE);
+            #ifdef ACCELERATED_ARRAYS_USE_OPENGL_ES
+                // NOTE: it is possible to tolerate this but then it's possible
+                // that all negative output values get clamped to 0
+                log_warn("glClampColor not available in OpenGL ES so can't use SNORM render targets");
+
+                #ifndef ACCELERATED_ARRAYS_DODGY_READS
+                    assert(false);
+                #endif
+            #else
+                log_warn("SNORM render target requires GL bug fixes only found on Reddit. Use with caution.");
+                //constexpr int GL_CLAMP_FRAGMENT_COLOR = 0x891B;
+                glClampColor(GL_CLAMP_FRAGMENT_COLOR, GL_FALSE);
+            #endif
         }
     }
 

@@ -85,6 +85,7 @@ TEST_CASE( "fixed-point image", "[accelerated-arrays-opengl]" ) {
     REQUIRE(int(outBuf.back()) == 204);
 }
 
+#ifndef ACCELERATED_ARRAYS_USE_OPENGL_ES
 TEST_CASE( "signed fixed-point image", "[accelerated-arrays-opengl]" ) {
     using namespace accelerated;
     auto processor = opengl::createGLFWProcessor();
@@ -116,13 +117,37 @@ TEST_CASE( "signed fixed-point image", "[accelerated-arrays-opengl]" ) {
     REQUIRE(int(outBuf.at(3)) == -6);
     REQUIRE(int(outBuf.back()) == -6);
 }
-
-TEST_CASE( "integer image", "[accelerated-arrays-opengl]" ) {
+TEST_CASE( "16-bit integer image", "[accelerated-arrays-opengl]" ) {
     using namespace accelerated;
     auto processor = opengl::createGLFWProcessor();
     auto factory = opengl::Image::createFactory(*processor);
 
     typedef std::int16_t Type;
+    auto image = factory->create<Type, 1>(20, 30);
+
+    std::vector<Type> inBuf, outBuf;
+    inBuf.resize(image->numberOfScalars(), -111);
+    image->write(inBuf);
+    image->read(outBuf).wait();
+    REQUIRE(int(outBuf[0]) == -111);
+
+    auto ops = opengl::operations::createFactory(*processor);
+    auto fill = ops->create(
+            operations::fill::Spec{}.setValue({ -204 }),
+            *image);
+
+    operations::callNullary(fill, *image).wait();
+    image->read(outBuf).wait();
+    REQUIRE(int(outBuf.back()) == -204);
+}
+#endif
+
+TEST_CASE( "32-bit integer image", "[accelerated-arrays-opengl]" ) {
+    using namespace accelerated;
+    auto processor = opengl::createGLFWProcessor();
+    auto factory = opengl::Image::createFactory(*processor);
+
+    typedef std::int32_t Type;
     auto image = factory->create<Type, 1>(20, 30);
 
     std::vector<Type> inBuf, outBuf;

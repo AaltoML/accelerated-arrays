@@ -6,6 +6,10 @@ if (WITH_OPENGL)
   add_definitions("-DTEST_WITH_OPENGL")
 endif()
 
+if (WITH_OPENGL_ES)
+  add_definitions("-DACCELERATED_ARRAYS_USE_OPENGL_ES")
+endif()
+
 add_executable(run-tests ${TEST_FILES})
 target_include_directories(run-tests PRIVATE
   Catch2/single_include
