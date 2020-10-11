@@ -102,4 +102,8 @@ bool ImageTypeSpec::isFixedPoint(DataType dtype) {
     return false;
 }
 
+bool ImageTypeSpec::isFloat(DataType dtype) {
+    return dtype == DataType::FLOAT32;
+}
+
 }

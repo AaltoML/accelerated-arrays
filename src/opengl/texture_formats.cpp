@@ -7,11 +7,12 @@ namespace accelerated {
 namespace opengl {
 namespace {
 void logSpec(const ImageTypeSpec &spec) {
-    LOG_TRACE("spec: %d channels, %d bits, %s %s %s",
+    LOG_TRACE("spec: %d channels, %d bits, %s %s%s%s",
         spec.channels, int(spec.bytesPerChannel()*8),
-        ImageTypeSpec::isFixedPoint(spec.dataType) ? "fixed" : "",
         ImageTypeSpec::isSigned(spec.dataType) ? "signed" : "",
-        ImageTypeSpec::isIntegerType(spec.dataType) ? "" : "float");
+        ImageTypeSpec::isFixedPoint(spec.dataType) ? "fixed" : "",
+        ImageTypeSpec::isIntegerType(spec.dataType) ? "integer" : "",
+        ImageTypeSpec::isFloat(spec.dataType) ? "float" : "");
 }
 }
 

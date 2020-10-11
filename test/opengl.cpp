@@ -47,9 +47,9 @@ TEST_CASE( "fixed-point image", "[accelerated-arrays-opengl]" ) {
     auto processor = opengl::createGLFWProcessor();
     auto factory = opengl::Image::createFactory(*processor);
 
-    typedef std::uint16_t IntType;
+    typedef std::uint8_t IntType;
     typedef FixedPoint<IntType> Type;
-    REQUIRE(sizeof(Type) == 2);
+    REQUIRE(sizeof(Type) == 1);
 
     auto image = factory->create<Type, 4>(20, 30);
 
@@ -73,25 +73,55 @@ TEST_CASE( "fixed-point image", "[accelerated-arrays-opengl]" ) {
     REQUIRE(int(outBuf.back()) == 204);
 }
 
+TEST_CASE( "signed fixed-point image", "[accelerated-arrays-opengl]" ) {
+    using namespace accelerated;
+    auto processor = opengl::createGLFWProcessor();
+    auto factory = opengl::Image::createFactory(*processor);
+
+    typedef std::int8_t IntType;
+    typedef FixedPoint<IntType> Type;
+
+    auto image = factory->create<Type, 4>(20, 30);
+
+    std::vector<IntType> inBuf, outBuf;
+    inBuf.resize(image->numberOfScalars(), -111);
+    image->writeRawFixedPoint(inBuf);
+    image->readRawFixedPoint(outBuf).wait();
+    REQUIRE(int(outBuf[0]) == -111);
+
+    double s = 1.0 / FixedPoint<IntType>::max();
+
+    auto ops = opengl::operations::createFactory(*processor);
+    auto fill = ops->create(
+            operations::fill::Spec{}.setValue({ 3 * s, 4 * s, 5 * s, -6 * s }),
+            *image);
+
+    operations::callNullary(fill, *image).wait();
+    image->readRawFixedPoint(outBuf).wait();
+    REQUIRE(int(outBuf.at(0)) == 3);
+    REQUIRE(int(outBuf.at(1)) == 4);
+    REQUIRE(int(outBuf.at(2)) == 5);
+    REQUIRE(int(outBuf.at(3)) == -6);
+    REQUIRE(int(outBuf.back()) == -6);
+}
+
 TEST_CASE( "integer image", "[accelerated-arrays-opengl]" ) {
     using namespace accelerated;
     auto processor = opengl::createGLFWProcessor();
     auto factory = opengl::Image::createFactory(*processor);
 
     typedef std::int16_t Type;
-    auto image = factory->create<Type, 4>(20, 30);
+    auto image = factory->create<Type, 1>(20, 30);
 
     std::vector<Type> inBuf, outBuf;
-    inBuf.resize(image->numberOfScalars(), 111);
-    outBuf.resize(image->numberOfScalars(), 222);
-
-    image->write(inBuf); // single-threaded, no need to wait here
+    inBuf.resize(image->numberOfScalars(), -111);
+    image->write(inBuf);
     image->read(outBuf).wait();
-    REQUIRE(int(outBuf[0]) == 111);
+    REQUIRE(int(outBuf[0]) == -111);
 
     auto ops = opengl::operations::createFactory(*processor);
     auto fill = ops->create(
-            operations::fill::Spec{}.setValue({ 201, 202, 203, -204 }),
+            operations::fill::Spec{}.setValue({ -204 }),
             *image);
 
     operations::callNullary(fill, *image).wait();
@@ -108,12 +138,10 @@ TEST_CASE( "float image", "[accelerated-arrays-opengl]" ) {
     auto image = factory->create<Type, 3>(20, 30);
 
     std::vector<Type> inBuf, outBuf;
-    inBuf.resize(image->numberOfScalars(), 111);
-    outBuf.resize(image->numberOfScalars(), 222);
-
-    image->write(inBuf); // single-threaded, no need to wait here
+    inBuf.resize(image->numberOfScalars(), 3.14159);
+    image->write(inBuf);
     image->read(outBuf).wait();
-    REQUIRE(int(outBuf[0]) == 111);
+    REQUIRE(std::fabs(outBuf[0] - 3.14159) < 1e-5);
 
     auto ops = opengl::operations::createFactory(*processor);
     auto fill = ops->create(

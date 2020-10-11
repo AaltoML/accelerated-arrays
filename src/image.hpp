@@ -65,6 +65,7 @@ struct ImageTypeSpec {
     static bool isIntegerType(DataType dtype);
     static bool isSigned(DataType dtype);
     static bool isFixedPoint(DataType dtype);
+    static bool isFloat(DataType dtype);
 };
 
 /**

@@ -202,6 +202,11 @@ public:
     void readPixels(uint8_t *pixels) final {
         LOG_TRACE("reading frame buffer %d", id);
         Binder binder(*this);
+
+        // probably not changed but good to set anyway
+        glReadBuffer(GL_COLOR_ATTACHMENT0);
+        CHECK_ERROR(__FUNCTION__);
+
         // Note: check this
         // https://www.khronos.org/opengl/wiki/Common_Mistakes#Slow_pixel_transfer_performance
         glReadPixels(0, 0, width, height, getReadPixelFormat(spec), getCpuType(spec), pixels);
@@ -523,6 +528,13 @@ public:
             ));
         }
         CHECK_ERROR(__FUNCTION__);
+
+        if (ImageTypeSpec::isFixedPoint(output.dataType) && ImageTypeSpec::isSigned(output.dataType)) {
+            // https://www.reddit.com/r/opengl/comments/bqe1jo/how_to_render_to_a_snorm_texture/
+            log_warn("SNORM render target requires GL bug fixes only found on Reddit. Use with caution.");
+            // constexpr int GL_CLAMP_FRAGMENT_COLOR = 0x891B;
+            glClampColor(GL_CLAMP_FRAGMENT_COLOR, GL_FALSE);
+        }
     }
 
     Binder::Target &bindTexture(unsigned index, int textureId) final {
