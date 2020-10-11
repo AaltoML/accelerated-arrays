@@ -4,7 +4,7 @@
 
 namespace accelerated {
 namespace opengl {
-class FrameBuffer;
+struct FrameBuffer;
 class Image : public ::accelerated::Image {
 public:
     // OpenGL-specifics
@@ -15,11 +15,11 @@ public:
     virtual FrameBuffer &getFrameBuffer() = 0;
 
     class Factory : public ::accelerated::Image::Factory {
+    public:
         template <class T, int Channels> std::unique_ptr<Image> wrapTexture(int textureId, int w, int h, StorageType stype = StorageType::GPU_OPENGL) {
-            return wrapTexture<T, Channels>(textureId, w, h,
-                getSpec(Channels, ImageTypeSpec::getType<T>(), stype));
+            return wrapTexture(textureId, w, h, getSpec(Channels, ImageTypeSpec::getType<T>(), stype));
         }
-    protected:
+
         virtual std::unique_ptr<Image> wrapTexture(int textureId, int w, int h, const ImageTypeSpec &spec) = 0;
     };
 

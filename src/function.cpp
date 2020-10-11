@@ -34,12 +34,12 @@ Future callNullary(Function &f, Image &output) {
 }
 
 Future callUnary(Function &f, Image &input, Image &output) {
-    std::array<Image*, 1> arr = { &input };
+    std::array<Image*, 1> arr = {{ &input }};
     return call(f, arr, output);
 }
 
 Future callBinary(Function &f, Image &a, Image &b, Image &output) {
-    std::array<Image*, 2> arr = { &a, &b };
+    std::array<Image*, 2> arr = {{ &a, &b }};
     return call(f, arr, output);
 }
 

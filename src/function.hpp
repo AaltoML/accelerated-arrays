@@ -39,6 +39,7 @@ template <class T, int N> Future wrapNAryBody(
     Image **inputs, int nInputs, Image &output,
     Processor &p)
 {
+    (void)nInputs;
     assert(nInputs == N);
     std::array<T*, N> args;
     for (int i = 0; i < nInputs; ++i) args[i] = &T::castFrom(*inputs[i]);
@@ -91,7 +92,7 @@ template <class T>
 std::function<void(T **inputs, int nInputs, T &output)>
 convert(const std::function<void(T &output)> &syncFunc) {
     return [syncFunc](T **inputs, int nInputs, T &output) {
-        (void)inputs;
+        (void)inputs; (void)nInputs;
         assert(nInputs == 0);
         syncFunc(output);
     };
@@ -101,7 +102,7 @@ template <class T>
 std::function<void(T **inputs, int nInputs, T &output)>
 convert(const std::function<void(T &input, T &output)> &syncFunc) {
     return [syncFunc](T **inputs, int nInputs, T &output) {
-        assert(nInputs == 1);
+        assert(nInputs == 1); (void)nInputs;
         syncFunc(*inputs[0], output);
     };
 }
@@ -110,7 +111,7 @@ template <class T>
 std::function<void(T **inputs, int nInputs, T &output)>
 convert(const std::function<void(T &a, T &b, T &output)> &syncFunc) {
     return [syncFunc](T **inputs, int nInputs, T &output) {
-        assert(nInputs == 2);
+        assert(nInputs == 2); (void)nInputs;
         syncFunc(*inputs[0], *inputs[1], output);
     };
 }

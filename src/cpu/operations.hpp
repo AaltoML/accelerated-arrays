@@ -1,7 +1,7 @@
 #include "../standard_ops.hpp"
 
 namespace accelerated {
-class Processor;
+struct Processor;
 namespace cpu {
 class Image;
 namespace operations {

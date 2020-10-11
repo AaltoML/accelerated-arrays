@@ -2,7 +2,7 @@
 #include "../standard_ops.hpp"
 
 namespace accelerated {
-class Processor;
+struct Processor;
 namespace opengl {
 class Image;
 struct Destroyable;

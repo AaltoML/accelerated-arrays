@@ -22,26 +22,61 @@ set(SRC_FILES
     src/queue.cpp
 )
 
+# a bit tedious to list all these manually
+install(FILES
+  src/fixed_point.hpp
+  src/function.hpp
+  src/future.hpp
+  src/image.hpp
+  src/standard_ops.hpp
+  DESTINATION include/${LIBNAME}
+  COMPONENT Headers)
+
+install(FILES
+  src/cpu/image.hpp
+  src/cpu/operations.hpp
+  DESTINATION include/${LIBNAME}/cpu
+  COMPONENT Headers)
+
 set(LIBRARY_DEPS Threads::Threads)
+if (ANDROID)
+  list(APPEND LIBRARY_DEPS log)
+endif()
 
 if (WITH_OPENGL)
-  find_package(OpenGL REQUIRED)
+  # TODO: iOS
+  if (NOT ANDROID)
+    find_package(OpenGL REQUIRED)
+  endif()
+
   list(APPEND SRC_FILES
     src/opengl/adapters.cpp
     src/opengl/image.cpp
     src/opengl/operations.cpp
     src/opengl/read_adapters.cpp
-    src/opengl/glfw.cpp # TODO: not on mobile
     src/opengl/texture_formats.cpp
   )
 
-  list(APPEND LIBRARY_DEPS glfw) # TODO: not on mobile
+  # Note: omitting some internals on purpose
+  install(FILES
+    src/opengl/image.hpp
+    src/opengl/operations.hpp
+    DESTINATION include/${LIBNAME}/opengl
+    COMPONENT Headers)
+
+  if (NOT ANDROID)
+    list(APPEND SRC_FILES src/opengl/glfw.cpp)
+    list(APPEND LIBRARY_DEPS glfw)
+  endif()
 
   if (WITH_OPENGL_ES)
-    list(APPEND LIBRARY_DEPS EGL) # TODO check
-    #list(APPEND LIBRARY_DEPS GL)
-    list(APPEND LIBRARY_DEPS GLESv2)
-    #list(APPEND LIBRARY_DEPS GLESv3) # TODO
+    if (ANDROID)
+      list(APPEND LIBRARY_DEPS GLESv3)
+    else()
+      list(APPEND LIBRARY_DEPS EGL) # TODO check
+      #list(APPEND LIBRARY_DEPS GL)
+      list(APPEND LIBRARY_DEPS GLESv2)
+    endif()
   else()
     list(APPEND LIBRARY_DEPS GL)
   endif()
@@ -53,6 +88,10 @@ target_link_libraries(${LIBNAME} ${LIBRARY_DEPS})
 
 if (WITH_OPENGL_ES)
   target_compile_definitions(${LIBNAME} PRIVATE "-DACCELERATED_ARRAYS_USE_OPENGL_ES")
+endif()
+
+if (ANDROID)
+  target_compile_definitions(${LIBNAME} PRIVATE "-DACCELERATED_ARRAYS_MAX_COMPATIBILITY_READS")
 endif()
 
 # Note, also consider using these flags
