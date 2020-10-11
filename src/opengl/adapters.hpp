@@ -25,7 +25,7 @@
 #define log_error(...) do { std::fprintf(stderr, "ERROR: "); std::fprintf(stderr, ## __VA_ARGS__); std::fprintf(stderr, "\n"); } while (0)
 #endif
 
-#define ACCELERATED_ARRAYS_LOG_TRACE
+//#define ACCELERATED_ARRAYS_LOG_TRACE
 #ifdef ACCELERATED_ARRAYS_LOG_TRACE
 #define LOG_TRACE(...) log_debug(__FILE__ ": " __VA_ARGS__)
 #else

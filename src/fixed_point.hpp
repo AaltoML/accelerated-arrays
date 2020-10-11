@@ -14,18 +14,29 @@ template <class T> struct FixedPoint {
     operator double() { return toFloat(); }
 
     double toFloat() const {
-        return clamp(value / (max() - min()) - floatMin());
+        const double c = value;
+        const double v = isSigned()
+            ? (2 * c + 1) / unsignedMax()
+            : c / max();
+        return clamp(v);
     }
 
-    static T fromFloat(double d) {
-        return static_cast<T>((clamp(d) + floatMin()) * (max() - min()));
+    static T fromFloat(double value) {
+        // cf. https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glReadPixels.xhtml
+        const double c = clamp(value);
+        const double v = isSigned()
+            ? (unsignedMax() * c - 1) / 2
+            : max() * c;
+        return static_cast<T>(v);
     }
 
-    inline static double min() { return std::numeric_limits<T>::lowest(); }
-    inline static double max() { return std::numeric_limits<T>::max(); }
-    //inline static double floatMin() { return min() < 0 ? -1.0 : 0.0; }
-    inline static double floatMin() { return 0.0; }
-    inline static double floatMax() { return 1.0;  }
+    inline static constexpr double min() { return std::numeric_limits<T>::lowest(); }
+    inline static constexpr double max() { return std::numeric_limits<T>::max(); }
+    inline static constexpr bool isSigned() { return min() < 0.0; }
+    inline static constexpr double unsignedMax() { return isSigned() ? (2 * max() + 1) : max(); }
+
+    inline static constexpr double floatMin() { return isSigned() ? -1.0 : 0.0; }
+    inline static constexpr double floatMax() { return 1.0;  }
 
     static double clamp(double d) {
         if (d < floatMin()) return floatMin();
