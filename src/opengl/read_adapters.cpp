@@ -27,13 +27,15 @@ struct Adapter {
         cpuFunction = [this, origRowWidth, bufRowWidth](std::uint8_t *out) {
             const int nRows = buffer->height;
 
+            //for (const auto &el : cpuBuffer) LOG_TRACE("cpu-buffer-unpacked: %d", int(el));
+
             int inOffset = 0, outOffset = 0;
             for (int i = 0; i < nRows; ++i) {
                 std::memcpy(out + outOffset, cpuBuffer.data() + inOffset, origRowWidth);
                 outOffset += origRowWidth;
                 inOffset += bufRowWidth;
             }
-            // for (const auto &el : cpuBuffer) log_debug("cpu-buffer: %d", int(el));
+            //for (const auto &el : cpuBuffer) LOG_TRACE("cpu-buffer-packed: %d", int(el));
             assert(inOffset == int(buffer->size()));
         };
         return true;
@@ -58,9 +60,9 @@ operations::Shader<Unary>::Builder createFunction(const Image &img, int targetCh
         const auto fullSwiz = "rgba";
         const auto swiz = glsl::swizzleSubset(img.channels);
         oss << "void main() {\n";
-        oss << "ivec2 outCoord = ivec2(v_texCoord / u_outSize);\n";
+        oss << "ivec2 outCoord = ivec2(v_texCoord * vec2(u_outSize));\n";
         int ratio = targetChannels / img.channels;
-        oss << "int x0 = int(outCoord.x * " << ratio << ");\n";
+        oss << "int x0 = outCoord.x * " << ratio << ";\n";
         for (int i = 0; i < ratio; ++i) {
             oss << getGlslVecType(img) << " col" << i << " = texelFetch(u_texture, " << "ivec2(x0 + " << i << ", outCoord.y)" << ", 0)." << swiz << ";\n";
             for (int j = 0; j < img.channels; ++j) {

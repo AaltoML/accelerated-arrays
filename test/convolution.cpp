@@ -58,7 +58,7 @@ TEST_CASE( "Convolution 2D", "[accelerated-arrays]" ) {
                         { -1, 0, 1 },
                         { -3, 0, 3 },
                         { -1, 0, 1 }}, 1/3.0)
-                    .setBias(1e-7),
+                    .setBias(1e-5),
                 *image
             );
 
@@ -69,7 +69,7 @@ TEST_CASE( "Convolution 2D", "[accelerated-arrays]" ) {
         outData.clear();
         outData.resize(inData.size(), 123);
         outImage->readRawFixedPoint(outData).wait();
-        //for (auto &el : outData) std::cout << "out-data:" << int(el) << std::endl;
+        // for (auto &el : outData) std::cout << "out-data:" << int(el) << std::endl;
 
         // just for checking the output
         auto checkerProc = Processor::createInstant();

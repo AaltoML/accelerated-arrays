@@ -207,15 +207,32 @@ public:
         glReadBuffer(GL_COLOR_ATTACHMENT0);
         CHECK_ERROR(__FUNCTION__);
 
+        // our CPU data is tightly packed and not 4-byte aligned (default)
+        GLint origPackAlignment;
+        glGetIntegerv(GL_PACK_ALIGNMENT, &origPackAlignment);
+        assert(origPackAlignment >= 1 && origPackAlignment <= 4);
+        glPixelStorei(GL_PACK_ALIGNMENT, 1);
+        CHECK_ERROR(__FUNCTION__);
+
         // Note: check this
         // https://www.khronos.org/opengl/wiki/Common_Mistakes#Slow_pixel_transfer_performance
         glReadPixels(0, 0, width, height, getReadPixelFormat(spec), getCpuType(spec), pixels);
         assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
         CHECK_ERROR(__FUNCTION__);
+
+        glPixelStorei(GL_PACK_ALIGNMENT, origPackAlignment);
+        CHECK_ERROR(__FUNCTION__);
     }
 
     void writePixels(const uint8_t *pixels) final {
         Binder binder(texture);
+
+        // our CPU data is tightly packed and not 4-byte aligned (default)
+        GLint origPackAlignment;
+        glGetIntegerv(GL_PACK_ALIGNMENT, &origPackAlignment);
+        assert(origPackAlignment >= 1 && origPackAlignment <= 4);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        CHECK_ERROR(__FUNCTION__);
 
         glTexImage2D(GL_TEXTURE_2D, 0,
             getTextureInternalFormat(spec),
@@ -223,6 +240,10 @@ public:
             getCpuFormat(spec),
             getCpuType(spec),
             pixels);
+
+        CHECK_ERROR(__FUNCTION__);
+
+        glPixelStorei(GL_PACK_ALIGNMENT, origPackAlignment);
         CHECK_ERROR(__FUNCTION__);
     }
 
@@ -506,7 +527,7 @@ private:
             oss << "uniform " << getGlslSamplerType(inputs.at(i)) << " " << textureName(i, inputs.size()) << ";\n";
         }
 
-        oss << "uniform vec2 " << outSizeName() << ";\n";
+        oss << "uniform ivec2 " << outSizeName() << ";\n";
         oss << "in vec2 v_texCoord;\n";
         oss << fragmentMain;
         oss << std::endl;
@@ -542,8 +563,9 @@ public:
     }
 
     void call(FrameBuffer &frameBuffer) final {
-        LOG_TRACE("setting out size uniform");
-        glUniform2f(outSizeUniform, frameBuffer.getWidth(), frameBuffer.getHeight());
+        const int w = frameBuffer.getWidth(), h =  frameBuffer.getHeight();
+        LOG_TRACE("setting out size uniform to %d x %d", w, h);
+        glUniform2i(outSizeUniform, w, h);
 
         CHECK_ERROR(__FUNCTION__);
         program.call(frameBuffer);

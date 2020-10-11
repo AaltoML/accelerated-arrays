@@ -1,5 +1,6 @@
 #include <catch2/catch.hpp>
 #include <cmath>
+#include <iostream>
 
 #include "opengl/operations.hpp"
 #include "opengl/image.hpp"
@@ -51,21 +52,32 @@ TEST_CASE( "fixed-point image", "[accelerated-arrays-opengl]" ) {
     typedef FixedPoint<IntType> Type;
     REQUIRE(sizeof(Type) == 1);
 
-    auto image = factory->create<Type, 4>(20, 30);
+    // note: also testing read adapters: 2-channel image cannot be read directly
+    auto image = factory->create<Type, 2>(19, 17); // also weird dimensions
 
     std::vector<IntType> inBuf, outBuf;
-    inBuf.resize(image->numberOfScalars(), 111);
+    for (std::size_t i = 0; i < image->numberOfScalars(); ++i)
+        inBuf.push_back(i);
+
+    REQUIRE(image->numberOfScalars() == 19*17*2);
     outBuf.resize(image->numberOfScalars(), 222);
 
     image->writeRawFixedPoint(inBuf); // single-threaded, no need to wait here
     image->readRawFixedPoint(outBuf).wait();
-    REQUIRE(int(outBuf[0]) == 111);
+
+    for (std::size_t i = 0; i < inBuf.size(); ++i) {
+        const int inEl = int(inBuf.at(i)), outEl = int(outBuf.at(i));
+        // std::cout << "in: " << inEl << ", " << "out: " << outEl << std::endl;
+        REQUIRE(inEl == outEl);
+    }
+
+    REQUIRE(int(outBuf[5]) == 5);
 
     double s = 1.0 / FixedPoint<IntType>::max();
 
     auto ops = opengl::operations::createFactory(*processor);
     auto fill = ops->create(
-            operations::fill::Spec{}.setValue({ 201 * s, 202 * s, 203 * s, 204 * s }),
+            operations::fill::Spec{}.setValue({ 203 * s, 204 * s }),
             *image);
 
     operations::callNullary(fill, *image).wait();
