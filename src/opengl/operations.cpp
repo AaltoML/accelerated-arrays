@@ -94,10 +94,10 @@ Shader<Unary>::Builder fixedConvolution2D(const FixedConvolution2DSpec &spec, co
         oss << "void main() {\n";
         oss << "vec2 alpha = stride * u_outSize;\n";
         oss << vtype << " v = " << vtype << "(0);\n";
-        oss << "for (int i = 0; i < KERNEL_H; i++) {\n";
-        oss << "for (int j = 0; j < KERNEL_W; j++) {\n";
-        oss << "    float k = kernel[uint(i * KERNEL_W + j)];\n";
-        oss << "    vec2 coord = (alpha * v_texCoord + (vec2(float(j), float(i)) + pixelOffset)) / vec2(textureSize(u_texture, 0));\n";
+        oss << "for (int i = 0; i < 1; i++) {\n";
+        oss << "for (int j = 0; j < 1; j++) {\n";
+        oss << "    float k = 1.0;//kernel[uint(i * KERNEL_W + j)];\n";
+        oss << "    vec2 coord = v_texCoord; // (alpha * v_texCoord + (vec2(j, i) + pixelOffset)) / vec2(textureSize(u_texture, 0));\n";
         oss << "    v += k * " << vtype << "(texture2D(u_texture, coord));\n";
         oss << "}\n";
         oss << "}\n";

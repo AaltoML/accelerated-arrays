@@ -10,8 +10,7 @@ template <class T> struct FixedPoint {
 
     FixedPoint() : value(0) {}
     FixedPoint(double f) : value(fromFloat(f)) {}
-
-    operator float() { return toFloat(); }
+    FixedPoint(const FixedPoint &other) : value(other.value) {}
     operator double() { return toFloat(); }
 
     double toFloat() const {
@@ -24,7 +23,8 @@ template <class T> struct FixedPoint {
 
     inline static double min() { return std::numeric_limits<T>::lowest(); }
     inline static double max() { return std::numeric_limits<T>::max(); }
-    inline static double floatMin() { return min() < 0 ? -1.0 : 0.0; }
+    //inline static double floatMin() { return min() < 0 ? -1.0 : 0.0; }
+    inline static double floatMin() { return 0.0; }
     inline static double floatMax() { return 1.0;  }
 
     static double clamp(double d) {
@@ -49,7 +49,7 @@ template <class T> struct FixedPoint {
     X(/=)
     #undef X
 
-    inline FixedPoint<T> operator -() { return FixedPoint<T>(-toFloat()); }
+    inline FixedPoint<T> operator -() const { return FixedPoint<T>(-toFloat()); }
 
     inline bool operator ==(const FixedPoint<T> &other) const { return value == other.value; }
     inline bool operator !=(const FixedPoint<T> &other) const { return value != other.value; }

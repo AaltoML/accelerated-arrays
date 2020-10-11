@@ -19,10 +19,6 @@ std::unique_ptr<Image> Image::Factory::createLike(const Image &image) {
     template <> bool ImageTypeSpec::isType<dtype>() const { return dataType == name; } \
     template <> void ImageTypeSpec::checkType<dtype>() const { assert(isType<dtype>()); } \
     template <> ImageTypeSpec::DataType ImageTypeSpec::getType<dtype>() { return name; } \
-    template <> Future Image::read(dtype *out) \
-        { assert(isType<dtype>()); return readRaw(reinterpret_cast<std::uint8_t*>(out)); } \
-    template <> Future Image::write(const dtype *in) \
-        { assert(isType<dtype>()); return writeRaw(reinterpret_cast<const std::uint8_t*>(in)); } \
     Y(dtype, name, 1) \
     Y(dtype, name, 2) \
     Y(dtype, name, 3) \
@@ -41,29 +37,27 @@ std::size_t ImageTypeSpec::bytesPerChannel() const {
     return 0;
 }
 
-double ImageTypeSpec::maxValueOf(DataType dtype) {
-    switch (dtype) {
-        #define X(dtype, name) case name: return std::numeric_limits<dtype>::max();
-        ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(X)
-        #undef X
-    }
-    assert(false && "invalid data type");
-    return 0;
-}
-
-
-double ImageTypeSpec::minValueOf(DataType dtype) {
-    switch (dtype) {
-        #define X(dtype, name) case name: return std::numeric_limits<dtype>::lowest();
-        ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(X)
-        #undef X
-    }
-    assert(false && "invalid data type");
-    return 0;
-}
-
 bool ImageTypeSpec::isIntegerType(DataType dtype) {
-    return dtype != DataType::FLOAT32;
+    switch (dtype) {
+
+        case DataType::UINT8: return true;
+        case DataType::SINT8: return true;
+        case DataType::UINT16: return true;
+        case DataType::SINT16: return true;
+        case DataType::UINT32: return true;
+        case DataType::SINT32: return true;
+
+        case DataType::FLOAT32: return false;
+        case DataType::UFIXED8: return false;
+        case DataType::SFIXED8: return false;
+        case DataType::UFIXED16: return false;
+        case DataType::SFIXED16: return false;
+        case DataType::UFIXED32: return false;
+        case DataType::SFIXED32: return false;
+
+        default: assert(false);
+    }
+    return false;
 }
 
 bool ImageTypeSpec::isSigned(DataType dtype) {

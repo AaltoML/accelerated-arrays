@@ -3,11 +3,16 @@
 #include <memory>
 #include <vector>
 
+#ifdef ACCELERATED_ARRAYS_USE_OPENGL_ES
 #include <GLES3/gl3.h>
 #include <GLES3/gl3ext.h>
 // NDK bug workaround: https://stackoverflow.com/a/31025110
 #define __gl2_h_
 #include <GLES2/gl2ext.h>
+#else
+#define GL_GLEXT_PROTOTYPES // again just something from a random forum :(
+#include <GL/gl.h>
+#endif
 
 // logging
 #ifndef log_error
@@ -19,9 +24,6 @@
 #define log_warn(...) do { std::fprintf(stderr, "WARN: "); std::fprintf(stderr, ## __VA_ARGS__); std::fprintf(stderr, "\n"); } while (0)
 #define log_error(...) do { std::fprintf(stderr, "ERROR: "); std::fprintf(stderr, ## __VA_ARGS__); std::fprintf(stderr, "\n"); } while (0)
 #endif
-
-// TODO: move somewhere else
-#define IS_OPENGL_ES
 
 #define ACCELERATED_ARRAYS_LOG_TRACE
 #ifdef ACCELERATED_ARRAYS_LOG_TRACE

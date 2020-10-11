@@ -1,5 +1,5 @@
 #include <cassert>
-// #include <iostream>
+//#include <iostream>
 
 #include "operations.hpp"
 #include "image.hpp"
@@ -58,12 +58,12 @@ template <class T> Unary fixedConvolution2D(const FixedConvolution2DSpec &spec) 
                 for (int j = 0; j < int(krow.size()); ++j) {
                     const int x1 = x * spec.xStride + j + kernelXOffset;
                     v += double(input.get<T>(x1, y1, c, spec.border)) * krow.at(j);
-                    // std::cout << " x:" << x << " y:" << y << " c:" << c << " i:" << i << " j:"  << j
-                    // << " x1:" << x1 << " y1:" << y1 << " : " << input.get<T>(x1, y1, c, spec.border) << " * " <<  krow.at(j) << std::endl;
+                    //std::cout << " x:" << x << " y:" << y << " c:" << c << " i:" << i << " j:"  << j
+                    // << " x1:" << x1 << " y1:" << y1 << " : " << double(input.get<T>(x1, y1, c, spec.border)) << " * " <<  krow.at(j) << std::endl;
                  }
             }
             // std::cout << x << " " << y << " " << c << " = " << v << std::endl;
-            output.set<T>(x, y, c, static_cast<T>(v));
+            output.set<T>(x, y, c, T(v));
         });
     };
 }

@@ -49,19 +49,19 @@ public:
     template<class T, std::size_t N> std::array<T, N> get(int x, int y, Border border) const {
         if (!applyBorder(x, y, border)) {
             std::array<T, N> result;
-            for (std::size_t i = 0; i < N; ++i) result.at(i) = 0;
+            for (std::size_t i = 0; i < N; ++i) result.at(i) = T(double(0));
             return result;
         }
         return get<T, N>(x, y);
     }
 
     template<class T> T get(int x, int y, int c, Border border) const {
-        if (!applyBorder(x, y, border)) return static_cast<T>(double(0));
+        if (!applyBorder(x, y, border)) return T(double(0));
         return get<T>(x, y, c);
     }
 
     template<class T> T get(int x, int y, Border border) const {
-        if (!applyBorder(x, y, border)) return static_cast<T>(double(0));
+        if (!applyBorder(x, y, border)) return T(double(0));
         return get<T>(x, y);
     }
 

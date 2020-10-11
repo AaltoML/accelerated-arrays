@@ -77,23 +77,33 @@ TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
     }
 }
 
-TEST_CASE( "types", "[accelerated-arrays]" ) {
+TEST_CASE( "Fixed point images", "[accelerated-arrays]" ) {
     using namespace accelerated;
-    REQUIRE(int(ImageTypeSpec::minValueOf(ImageTypeSpec::DataType::UINT8)) == 0);
-    REQUIRE(int(ImageTypeSpec::maxValueOf(ImageTypeSpec::DataType::UINT8)) == 0xff);
 
-    REQUIRE(int(ImageTypeSpec::minValueOf(ImageTypeSpec::DataType::SINT8)) == -128);
-    REQUIRE(int(ImageTypeSpec::maxValueOf(ImageTypeSpec::DataType::SINT8)) == 127);
+    auto processor = Processor::createInstant();
+    auto factory = cpu::Image::createFactory(*processor);
 
-    REQUIRE(int(ImageTypeSpec::minValueOf(ImageTypeSpec::DataType::UINT16)) == 0);
-    REQUIRE(int(ImageTypeSpec::maxValueOf(ImageTypeSpec::DataType::UINT16)) == 0xffff);
+    typedef FixedPoint<std::int16_t> Type;
 
-    REQUIRE(int(ImageTypeSpec::minValueOf(ImageTypeSpec::DataType::SINT16)) == -0x8000);
-    REQUIRE(int(ImageTypeSpec::maxValueOf(ImageTypeSpec::DataType::SINT16)) == 0x7fff);
+    auto image = factory->create<Type, 2>(3, 4);
 
-    REQUIRE(long(ImageTypeSpec::minValueOf(ImageTypeSpec::DataType::UINT32)) == 0);
-    REQUIRE(long(ImageTypeSpec::maxValueOf(ImageTypeSpec::DataType::UINT32)) == 0xffffffffl);
+    REQUIRE(image->width == 3);
+    REQUIRE(image->height == 4);
+    REQUIRE(image->channels == 2);
+    REQUIRE(image->storageType == ImageTypeSpec::StorageType::CPU);
+    REQUIRE(image->size() == 3*4*2*2);
+    REQUIRE(image->numberOfPixels() == 3*4);
+    REQUIRE(image->bytesPerPixel() == 2*2);
 
-    REQUIRE(long(ImageTypeSpec::minValueOf(ImageTypeSpec::DataType::SINT32)) == -0x80000000l);
-    REQUIRE(long(ImageTypeSpec::maxValueOf(ImageTypeSpec::DataType::SINT32)) == 0x7fffffffl);
+    std::vector<std::int16_t> in = {
+        1,2,  3,4,  5,0,
+        0,0,  9,0,  0,6,
+        7,0,  0,0,  0,0,
+        0,0,  0,8,  0,9
+    };
+
+    image->write(reinterpret_cast<std::vector<Type>&>(in)).wait();
+    const auto &cpuImg = cpu::Image::castFrom(*image);
+    REQUIRE(cpuImg.get<Type>(2, 0, 0).value == 5);
+    REQUIRE(cpuImg.get<Type>(2, 1, 1).value == 6);
 }

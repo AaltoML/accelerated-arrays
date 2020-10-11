@@ -62,14 +62,9 @@ struct ImageTypeSpec {
         return !(*this == other);
     }
 
-    static double maxValueOf(DataType dtype);
-    static double minValueOf(DataType dtype);
     static bool isIntegerType(DataType dtype);
     static bool isSigned(DataType dtype);
     static bool isFixedPoint(DataType dtype);
-
-    double minValue() const { return minValueOf(dataType); }
-    double maxValue() const { return maxValueOf(dataType); }
 };
 
 /**
@@ -105,20 +100,6 @@ struct Image : ImageTypeSpec {
         WRAP
     };
 
-    // add some type safety wrappers
-    template <class T> Future read(T *outputData);
-    template <class T> Future write(const T *inputData);
-
-    template <class T> inline Future read(std::vector<T> &output) {
-        output.resize(numberOfScalars());
-        return read<T>(output.data());
-    }
-
-    template <class T> inline Future write(const std::vector<T> &input) {
-        assert(input.size() == numberOfScalars());
-        return write<T>(input.data());
-    }
-
     class Factory {
     public:
         virtual ~Factory();
@@ -133,6 +114,35 @@ struct Image : ImageTypeSpec {
     virtual Future readRaw(std::uint8_t *outputData) = 0;
     /** Asyncronous write operation */
     virtual Future writeRaw(const std::uint8_t *inputData) = 0;
+
+    // add some type safety wrappers
+    template <class T> Future read(T *outputData) {
+        assert(isType<T>());
+        return readRaw(reinterpret_cast<std::uint8_t*>(outputData));
+    }
+
+    template <class T> Future write(const T *inputData) {
+        assert(isType<T>());
+        return writeRaw(reinterpret_cast<const std::uint8_t*>(inputData));
+    }
+
+    template <class T> inline Future read(std::vector<T> &output) {
+        output.resize(numberOfScalars());
+        return read<T>(output.data());
+    }
+
+    template <class T> inline Future write(const std::vector<T> &input) {
+        assert(input.size() == numberOfScalars());
+        return write<T>(input.data());
+    }
+
+    template <class T> Future readRawFixedPoint(std::vector<T> &output) {
+        return read(reinterpret_cast<std::vector<FixedPoint<T>>&>(output));
+    }
+
+    template <class T> Future writeRawFixedPoint(const std::vector<T> &input) {
+        return write(reinterpret_cast<const std::vector<FixedPoint<T>>&>(input));
+    }
 };
 
 #define ACCELERATED_IMAGE_FOR_EACH_TYPE(x) \
@@ -170,8 +180,6 @@ struct Image : ImageTypeSpec {
 #define X(dtype) \
     template <> void ImageTypeSpec::checkType<dtype>() const; \
     template <> bool ImageTypeSpec::isType<dtype>() const; \
-    template <> Future Image::read(dtype *out); \
-    template <> Future Image::write(const dtype *in); \
     template <> ImageTypeSpec::DataType ImageTypeSpec::getType<dtype>(); \
     Y(dtype, 1); \
     Y(dtype, 2); \

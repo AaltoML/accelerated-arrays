@@ -172,7 +172,7 @@ public:
         // support reading & writing directly, but this is not the case in
         // general in OpenGL
         // TODO: not correct
-        #ifdef USE_OPENGL_ES_ONLY
+        #ifdef ACCELERATED_ARRAYS_USE_OPENGL_ES
             return dataType == DataType::UINT8 && channels == 4;
         #else
             return channels != 2;

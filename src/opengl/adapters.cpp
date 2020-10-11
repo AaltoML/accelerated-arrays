@@ -4,23 +4,29 @@
 #include "adapters.hpp"
 #include "../image.hpp"
 
+#define _THING_AS_STRING(x) #x
+#define _CHECK_ERROR_MARKER(line) __FILE__ ":" _THING_AS_STRING(line)
+#define CHECK_ERROR(func) checkError(_CHECK_ERROR_MARKER(__LINE__), func)
+
 namespace accelerated {
 namespace opengl {
-void checkError(const char *tag) {
+static void checkError(const char *tag, const char *tag2) {
     GLint error;
     bool any = false;
     while((error = glGetError())) {
         any = true;
-        log_error("%s produced glError (0x%x)", tag, error);
+        if (tag2 != nullptr) {
+            log_error("%s (%s) produced glError (0x%x)", tag, tag2, error);
+        } else {
+            log_error("%s produced glError (0x%x)", tag, error);
+        }
     }
     if (any) {
         std::abort();
     }
 }
 
-void checkError(std::string tag) {
-    checkError(tag.c_str());
-}
+void checkError(const char *tag) { checkError(tag, nullptr); }
 
 // could be exposed in the hpp file but not used currently elsewhere
 struct Texture : Destroyable, Binder::Target {
@@ -87,7 +93,7 @@ public:
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-        checkError(__FUNCTION__);
+        CHECK_ERROR(__FUNCTION__);
     }
 
     void destroy() final {
@@ -107,7 +113,7 @@ public:
     void bind() final {
         glBindTexture(bindType, id);
         LOG_TRACE("bound texture %d", id);
-        checkError(__FUNCTION__);
+        CHECK_ERROR(__FUNCTION__);
     }
 
     void unbind() final {
@@ -122,7 +128,7 @@ public:
         // just overwrite this anyway.
         glBindTexture(bindType, 0);
         LOG_TRACE("unbound texture");
-        checkError(__FUNCTION__);
+        CHECK_ERROR(__FUNCTION__);
     }
 
     int getId() const { return id; }
@@ -140,15 +146,19 @@ public:
     : width(w), height(h), spec(spec), id(0), texture(w, h, spec) {
         glGenFramebuffers(1, &id);
         LOG_TRACE("generated frame buffer %d", id);
-        checkError(std::string(__FUNCTION__) + "/glGenFramebuffers");
+        CHECK_ERROR(__FUNCTION__);
 
         assert(spec.storageType == Image::StorageType::GPU_OPENGL);
 
         Binder binder(*this);
 
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture.getId(), 0);
-        checkError(std::string(__FUNCTION__) + "/glFramebufferTexture2D");
+        CHECK_ERROR(__FUNCTION__);
         assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+
+        GLenum bufs[1] = { GL_COLOR_ATTACHMENT0 }; // single output at location 0
+        glDrawBuffers(1, bufs);
+        CHECK_ERROR(__FUNCTION__);
     }
 
     void destroy() final {
@@ -170,32 +180,33 @@ public:
     }
 
     void bind() final {
+        // texture.bind();
         LOG_TRACE("bound frame buffer %d", id);
         glBindFramebuffer(GL_FRAMEBUFFER, id);
-        checkError(__FUNCTION__);
+        CHECK_ERROR(__FUNCTION__);
     }
 
     void unbind() final {
         LOG_TRACE("unbound frame buffer");
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        checkError(__FUNCTION__);
+        // texture.unbind();
+        CHECK_ERROR(__FUNCTION__);
     }
 
     void setViewport() final {
         LOG_TRACE("glViewport(0, 0, %d, %d)", width, height);
         glViewport(0, 0, width, height);
-        checkError(__FUNCTION__);
+        CHECK_ERROR(__FUNCTION__);
     }
 
     void readPixels(uint8_t *pixels) final {
         LOG_TRACE("reading frame buffer %d", id);
         Binder binder(*this);
-        // Note: OpenGL ES only supports GL_RGBA / GL_UNSIGNED_BYTE (in practice)
         // Note: check this
         // https://www.khronos.org/opengl/wiki/Common_Mistakes#Slow_pixel_transfer_performance
         glReadPixels(0, 0, width, height, getReadPixelFormat(spec), getCpuType(spec), pixels);
         assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
-        checkError(__FUNCTION__);
+        CHECK_ERROR(__FUNCTION__);
     }
 
     void writePixels(const uint8_t *pixels) final {
@@ -207,7 +218,7 @@ public:
             getCpuFormat(spec),
             getCpuType(spec),
             pixels);
-        checkError(__FUNCTION__);
+        CHECK_ERROR(__FUNCTION__);
     }
 
     int getId() const { return id; }
@@ -251,9 +262,9 @@ GLuint createProgram(const char* vertexSource, const char* fragmentSource) {
     const GLuint program = glCreateProgram();
     assert(program);
     glAttachShader(program, vertexShader);
-    checkError("glAttachShader");
+    CHECK_ERROR(__FUNCTION__);
     glAttachShader(program, fragmentShader);
-    checkError("glAttachShader");
+    CHECK_ERROR(__FUNCTION__);
     glLinkProgram(program);
     GLint linkStatus = GL_FALSE;
     glGetProgramiv(program, GL_LINK_STATUS, &linkStatus);
@@ -287,7 +298,7 @@ public:
     }
 
     void unbind() final {
-        LOG_TRACE("deactivating shader: glUseProgram(0)", program);
+        LOG_TRACE("deactivating shader: glUseProgram(0)");
         glUseProgram(0);
     }
 
@@ -350,6 +361,7 @@ public:
                 1, 1, 1, 1,
                 1, -1, 1, 0
         };
+
         glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
         glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData), vertexData, GL_STATIC_DRAW);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -379,39 +391,37 @@ public:
 
         glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexIndexBuffer);
-        checkError(std::string(__FUNCTION__) + "/glBindBuffer x 2");
+        CHECK_ERROR(__FUNCTION__);
 
         glEnableVertexAttribArray(aVertexData);
         glVertexAttribPointer(aVertexData, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
-        checkError(std::string(__FUNCTION__) + "/glVertexAttribPointer(aVertexData, ...)");
+        CHECK_ERROR(__FUNCTION__);
     }
 
     void unbind() final {
         glDisableVertexAttribArray(aVertexData);
-        checkError(std::string(__FUNCTION__) + "/glDisableVertexAttribArray x 2");
+        CHECK_ERROR(__FUNCTION__);
 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
-        checkError(std::string(__FUNCTION__) + "/glBindBuffer x 2");
+        CHECK_ERROR(__FUNCTION__);
 
         program.unbind();
     }
 
     void call(FrameBuffer &frameBuffer) final {
+        LOG_TRACE("call with frame buffer %d", frameBuffer.getId());
         // might typically be enabled, thus checking
         GlFlagSetter<GL_DEPTH_TEST, false> noDepthTest;
         GlFlagSetter<GL_BLEND, false> noBlend;
         // GlFlagSetter<GL_ALPHA_TEST, false> noAlphaTest;
 
         Binder frameBufferBinder(frameBuffer);
+
         frameBuffer.setViewport();
 
-        // GLenum bufs[1] = { GL_COLOR_ATTACHMENT0 }; // single output at location 0
-        // glDrawBuffers(sizeof(bufs), bufs);
-        // checkError(__FUNCTION__);
-
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-        checkError(__FUNCTION__);
+        CHECK_ERROR(__FUNCTION__);
     }
 
     int getId() const final {
@@ -484,8 +494,8 @@ private:
         if (hasExternal(inputs)) {
             oss << "#extension GL_OES_EGL_image_external : require\n";
         }
-        oss << "layout(location = 0) out " << getGlslVecType(output) << " outValue;\n";
         oss << "precision highp float;\n";
+        oss << "layout(location = 0) out " << getGlslVecType(output) << " outValue;\n";
 
         for (std::size_t i = 0; i < inputs.size(); ++i) {
             oss << "uniform " << getGlslSamplerType(inputs.at(i)) << " " << textureName(i, inputs.size()) << ";\n";
@@ -512,7 +522,7 @@ public:
                 glGetUniformLocation(program.getId(), textureName(i, inputs.size()).c_str())
             ));
         }
-        checkError(__FUNCTION__);
+        CHECK_ERROR(__FUNCTION__);
     }
 
     Binder::Target &bindTexture(unsigned index, int textureId) final {
@@ -523,7 +533,7 @@ public:
         LOG_TRACE("setting out size uniform");
         glUniform2f(outSizeUniform, frameBuffer.getWidth(), frameBuffer.getHeight());
 
-        checkError(__FUNCTION__);
+        CHECK_ERROR(__FUNCTION__);
         program.call(frameBuffer);
     }
 

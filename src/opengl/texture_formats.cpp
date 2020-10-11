@@ -5,8 +5,20 @@
 
 namespace accelerated {
 namespace opengl {
+namespace {
+void logSpec(const ImageTypeSpec &spec) {
+    LOG_TRACE("spec: %d channels, %d bits, %s %s %s",
+        spec.channels, int(spec.bytesPerChannel()*8),
+        ImageTypeSpec::isFixedPoint(spec.dataType) ? "fixed" : "",
+        ImageTypeSpec::isSigned(spec.dataType) ? "signed" : "",
+        ImageTypeSpec::isIntegerType(spec.dataType) ? "" : "float");
+}
+}
+
 int getTextureInternalFormat(const ImageTypeSpec &spec) {
     #define X(x) LOG_TRACE("getInternalFormat:%s", #x); return x
+
+    logSpec(spec);
 
     // could be tried as a fallback but not preferrable
     /*
@@ -34,7 +46,7 @@ int getTextureInternalFormat(const ImageTypeSpec &spec) {
             case ImageTypeSpec::DataType::FLOAT32: X(GL_R32F);
             case ImageTypeSpec::DataType::UFIXED8: X(GL_R8);
             case ImageTypeSpec::DataType::SFIXED8: X(GL_R8_SNORM);
-        #ifdef IS_OPENGL_ES
+        #ifdef ACCELERATED_ARRAYS_USE_OPENGL_ES
             case ImageTypeSpec::DataType::UFIXED16: LOSSY(GL_R16F);
             case ImageTypeSpec::DataType::SFIXED16: LOSSY(GL_R16F);
         #else
@@ -57,7 +69,7 @@ int getTextureInternalFormat(const ImageTypeSpec &spec) {
             case ImageTypeSpec::DataType::FLOAT32: X(GL_RG32F);
             case ImageTypeSpec::DataType::UFIXED8: X(GL_RG8);
             case ImageTypeSpec::DataType::SFIXED8: X(GL_RG8_SNORM);
-        #ifdef IS_OPENGL_ES
+        #ifdef ACCELERATED_ARRAYS_USE_OPENGL_ES
             case ImageTypeSpec::DataType::UFIXED16: LOSSY(GL_RG16F);
             case ImageTypeSpec::DataType::SFIXED16: LOSSY(GL_RG16F);
         #else
@@ -80,7 +92,7 @@ int getTextureInternalFormat(const ImageTypeSpec &spec) {
             case ImageTypeSpec::DataType::FLOAT32: X(GL_RGB32F);
             case ImageTypeSpec::DataType::UFIXED8: X(GL_RGB8);
             case ImageTypeSpec::DataType::SFIXED8: X(GL_RGB8_SNORM);
-        #ifdef IS_OPENGL_ES
+        #ifdef ACCELERATED_ARRAYS_USE_OPENGL_ES
             case ImageTypeSpec::DataType::UFIXED16: LOSSY(GL_RGB16F);
             case ImageTypeSpec::DataType::SFIXED16: LOSSY(GL_RGB16F);
         #else
@@ -103,7 +115,7 @@ int getTextureInternalFormat(const ImageTypeSpec &spec) {
             case ImageTypeSpec::DataType::FLOAT32: X(GL_RGBA32F);
             case ImageTypeSpec::DataType::UFIXED8: X(GL_RGBA8);
             case ImageTypeSpec::DataType::SFIXED8: X(GL_RGBA8_SNORM);
-        #ifdef IS_OPENGL_ES
+        #ifdef ACCELERATED_ARRAYS_USE_OPENGL_ES
             case ImageTypeSpec::DataType::UFIXED16: LOSSY(GL_RGBA16F);
             case ImageTypeSpec::DataType::SFIXED16: LOSSY(GL_RGBA16F);
         #else
@@ -127,20 +139,20 @@ int getTextureInternalFormat(const ImageTypeSpec &spec) {
 int getCpuFormat(const ImageTypeSpec &spec) {
     #define X(x) LOG_TRACE("getCpuFormat:%s", #x); return x
     // TODO: also support fixed-point types
-    if (spec.dataType == ImageTypeSpec::DataType::FLOAT32 || ImageTypeSpec::isFixedPoint(spec.dataType)) {
-        switch (spec.channels) {
-            case 1: X(GL_RED);
-            case 2: X(GL_RG);
-            case 3: X(GL_RGB);
-            case 4: X(GL_RGBA);
-            default: break;
-        }
-    } else {
+    if (ImageTypeSpec::isIntegerType(spec.dataType)) {
         switch (spec.channels) {
             case 1: X(GL_RED_INTEGER);
             case 2: X(GL_RG_INTEGER);
             case 3: X(GL_RGB_INTEGER);
             case 4: X(GL_RGBA_INTEGER);
+            default: break;
+        }
+    } else {
+        switch (spec.channels) {
+            case 1: X(GL_RED);
+            case 2: X(GL_RG);
+            case 3: X(GL_RGB);
+            case 4: X(GL_RGBA);
             default: break;
         }
     }
@@ -185,14 +197,29 @@ std::string getGlslVecType(const ImageTypeSpec &spec) {
 
 int getReadPixelFormat(const ImageTypeSpec &spec) {
     #define X(x) LOG_TRACE("getReadPixelFormat:%s", #x); return x
-    switch (spec.channels) {
-        case 1: X(GL_RED);
-        case 2:
-            log_warn("OpenGL spec does not allow reading 2-channel textures directly");
-            X(GL_RG);
-        case 3: X(GL_RGB);
-        case 4: X(GL_RGBA);
-        default: break;
+    if (ImageTypeSpec::isIntegerType(spec.dataType)) {
+        // https://stackoverflow.com/a/55141849/1426569
+        // "Note: the official reference page is incomplete/wrong."
+        // (╯°□°)╯︵ ┻━┻
+        // (would not be supported in GLES anyway)
+        switch (spec.channels) {
+            case 1: X(GL_RED_INTEGER);
+            case 2: X(GL_RG_INTEGER);
+            case 3: X(GL_RGB_INTEGER);
+            case 4: X(GL_RGBA_INTEGER);
+            default: break;
+        }
+    } else {
+        switch (spec.channels) {
+            case 1: X(GL_RED);
+            case 2:
+                // may work just fine in practice
+                log_warn("OpenGL spec does not allow reading 2-channel textures directly");
+                X(GL_RG);
+            case 3: X(GL_RGB);
+            case 4: X(GL_RGBA);
+            default: break;
+        }
     }
     #undef X
     assert(false);
@@ -227,8 +254,12 @@ int getBindType(const ImageTypeSpec &spec) {
         LOG_TRACE("getBindType:GL_TEXTURE_2D");
         return GL_TEXTURE_2D;
     } else if (spec.storageType == ImageTypeSpec::StorageType::GPU_OPENGL_EXTERNAL) {
+    #ifdef ACCELERATED_ARRAYS_USE_OPENGL_ES
         LOG_TRACE("getBindType:GL_TEXTURE_EXTERNAL_OES");
         return GL_TEXTURE_EXTERNAL_OES;
+    #else
+        assert(false && "GL_TEXTURE_EXTERNAL_OES is only available in OpenGL ES");
+    #endif
     }
     assert(false);
     return -1;

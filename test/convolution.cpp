@@ -39,14 +39,18 @@ TEST_CASE( "Convolution 2D", "[accelerated-arrays]" ) {
     #endif
 
     for (auto &it : items) {
-        std::vector<FixedPoint<std::int16_t>> in = {
+        typedef std::uint8_t IntType;
+        typedef FixedPoint<IntType> Type;
+
+        std::vector<IntType> inData = {
             1,2,  3,4,  5,0,
             0,0,  9,0,  0,6,
             7,0,  0,0,  0,0,
             0,0,  0,8,  0,9
         };
-        auto image = it.img->create<FixedPoint<std::int16_t>, 2>(3, 4);
-        image->write(in).wait();
+        auto image = it.img->create<Type, 2>(3, 4);
+        image->writeRawFixedPoint(inData).wait();
+        //for (auto &el : inData) std::cout << "in-data:" << int(el) << std::endl;
 
         auto convolution = it.ops->create(
                 operations::fixedConvolution2D::Spec{}
@@ -54,24 +58,26 @@ TEST_CASE( "Convolution 2D", "[accelerated-arrays]" ) {
                         { -1, 0, 1 },
                         { -3, 0, 3 },
                         { -1, 0, 1 }}, 1/3.0)
-                    .setBias(0.5),
+                    .setBias(1e-7),
                 *image
             );
 
         auto outImage = it.img->createLike(*image);
         operations::callUnary(convolution, *image, *outImage).wait();
-        auto outData = in;
 
-        outImage->read(outData).wait();
+        auto outData = inData;
+        outData.clear();
+        outData.resize(inData.size(), 123);
+        outImage->readRawFixedPoint(outData).wait();
+        //for (auto &el : outData) std::cout << "out-data:" << int(el) << std::endl;
 
         // just for checking the output
         auto checkerProc = Processor::createInstant();
         auto factory = cpu::Image::createFactory(*checkerProc);
-        auto checkImage = factory->create<FixedPoint<std::int16_t>, 2>(3, 4);
-        // for (auto &el : outData) std::cout << "out-data:" << int(el) << std::endl;
-        checkImage->write(outData).wait();
+        auto checkImage = factory->create<Type, 2>(3, 4);
+        checkImage->writeRawFixedPoint(outData).wait();
 
         const auto &outCpu = cpu::Image::castFrom(*checkImage);
-        REQUIRE(outCpu.get<FixedPoint<std::int16_t>>(1, 1, 1).value == int((-2 + 3*6) / 3.0 + 0.5));
+        REQUIRE(outCpu.get<Type>(1, 1, 1).value == int((-2 + 3*6) / 3.0 + 0.5));
     }
 }

@@ -11,6 +11,7 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(WITH_OPENGL "Compile with OpenGL support" ON)
+option(WITH_OPENGL_ES "Use OpenGL ES" OFF)
 
 set(SRC_FILES
     src/cpu/image.cpp
@@ -34,19 +35,23 @@ if (WITH_OPENGL)
     src/opengl/texture_formats.cpp
   )
 
-  list(APPEND LIBRARY_DEPS
-    EGL
-    GLESv2 # TODO: GELSv3
-    glfw # TODO: not on mobile
-  )
+  list(APPEND LIBRARY_DEPS glfw) # TODO: not on mobile
+
+  if (WITH_OPENGL_ES)
+    list(APPEND LIBRARY_DEPS EGL) # TODO check
+    #list(APPEND LIBRARY_DEPS GELSv2)
+    list(APPEND LIBRARY_DEPS GELSv3) # TODO
+  else()
+    list(APPEND LIBRARY_DEPS GL)
+  endif()
 endif()
 
 add_library(${LIBNAME} ${SRC_FILES})
 # TODO: public header part
 target_link_libraries(${LIBNAME} ${LIBRARY_DEPS})
 
-if (ANDROID OR IOS)
-  add_target_definitions(${LIBNAME} "-DUSE_OPENGL_ES_ONLY")
+if (WITH_OPENGL_ES)
+  add_target_definitions(${LIBNAME} "-DACCELERATED_ARRAYS_USE_OPENGL_ES")
 endif()
 
 install(TARGETS ${LIBNAME}

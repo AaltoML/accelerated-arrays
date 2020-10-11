@@ -8,17 +8,6 @@ namespace accelerated {
 namespace opengl {
 namespace {
 
-double maxDataTypeValue(ImageTypeSpec::DataType dtype) {
-    // NOTE: using floats as-is, and not squeezing to [0, 1]
-    if (dtype == ImageTypeSpec::DataType::FLOAT32) return 1.0;
-    return ImageTypeSpec::maxValueOf(dtype);
-}
-
-double minDataTypeValue(ImageTypeSpec::DataType dtype) {
-    if (dtype == ImageTypeSpec::DataType::FLOAT32) return 0.0;
-    return ImageTypeSpec::minValueOf(dtype);
-}
-
 namespace glsl {
 template <class T> std::string wrapToVec(const std::vector<T> &values, const ImageTypeSpec &spec) {
     assert(!values.empty() && values.size() <= 4);
@@ -49,7 +38,7 @@ std::string floatVecType(int channels) {
     return oss.str();
 }
 
-std::string convertToFloatOutputValue(const std::string &value, ImageTypeSpec::DataType dtype) {
+/*std::string convertToFloatOutputValue(const std::string &value, ImageTypeSpec::DataType dtype) {
     double maxValue = maxDataTypeValue(dtype);
     double minValue = minDataTypeValue(dtype);
     std::ostringstream oss;
@@ -69,7 +58,7 @@ std::string convertFromFloatInputValue(const std::string &value, ImageTypeSpec::
     if (minValue != 0.0) oss << " + (" << (minValue/(maxValue - minValue)) << ")";
     oss << "))";
     return oss.str();
-}
+}*/
 
 }
 
