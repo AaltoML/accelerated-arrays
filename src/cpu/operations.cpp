@@ -1,5 +1,5 @@
 #include <cassert>
-//#include <iostream>
+#include <iostream>
 
 #include "operations.hpp"
 #include "image.hpp"
@@ -11,6 +11,8 @@ namespace {
 typedef ::accelerated::Image BaseImage;
 typedef ::accelerated::operations::fixedConvolution2D::Spec FixedConvolution2DSpec;
 typedef ::accelerated::operations::fill::Spec FillSpec;
+typedef ::accelerated::operations::pixelwiseAffine::Spec PixelwiseAffineSpec;
+typedef ::accelerated::operations::channelwiseAffine::Spec ChannelwiseAffineSpec;
 using ::accelerated::operations::Function;
 using ::accelerated::operations::convert;
 
@@ -40,6 +42,33 @@ template <class T> Nullary fill(const FillSpec &spec) {
     return [spec](Image &output) {
         forEachPixelAndChannel(output, [&spec](Image &output, int x, int y, int c) {
             output.set<T>(x, y, c, static_cast<T>(spec.value.at(c)));
+        });
+    };
+}
+
+template <class InType, class OutType> Unary pixelwiseAffine(const PixelwiseAffineSpec &spec) {
+    return [spec](Image &input, Image &output) {
+        assert(int(spec.linear.size()) == output.channels);
+        forEachPixelAndChannel(output, [&spec, &input](Image &output, int x, int y, int c) {
+            double v = spec.bias.at(c);
+            const auto &matRow = spec.linear.at(c);
+            assert(int(matRow.size()) == input.channels);
+            for (int inChan = 0; inChan < input.channels; ++inChan) {
+                const double inValue = input.get<InType>(x, y, inChan);
+                v += matRow.at(inChan) * inValue;
+            }
+            // std::cout << x << " " << y << " " << c << " = " << v << std::endl;
+            output.set<OutType>(x, y, c, static_cast<OutType>(v));
+        });
+    };
+}
+
+template <class InType, class OutType> Unary channelwiseAffine(const ChannelwiseAffineSpec &spec) {
+    return [spec](Image &input, Image &output) {
+        assert(output.channels == input.channels);
+        forEachPixelAndChannel(output, [&spec, &input](Image &output, int x, int y, int c) {
+            const double inValue = input.get<InType>(x, y, c);
+            output.set<OutType>(x, y, c, static_cast<OutType>(spec.scale * inValue + spec.bias));
         });
     };
 }
@@ -105,6 +134,25 @@ public:
             if (imageSpec.dataType == ImageTypeSpec::getType<dtype>()) \
                 return wrapChecked(fill<dtype>(spec), imageSpec);
         ACCELERATED_IMAGE_FOR_EACH_TYPE(X)
+        #undef X
+        assert(false);
+    }
+
+    Function create(const PixelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
+        // NOTE: this will cause some template bloat
+        #define X(inType, outType) \
+            if (inSpec.dataType == ImageTypeSpec::getType<inType>() && outSpec.dataType == ImageTypeSpec::getType<outType>()) \
+                return wrap<Unary>(pixelwiseAffine<inType, outType>(spec));
+        ACCELERATED_IMAGE_FOR_EACH_TYPE_PAIR(X)
+        #undef X
+        assert(false);
+    }
+
+    Function create(const ChannelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
+        #define X(inType, outType) \
+            if (inSpec.dataType == ImageTypeSpec::getType<inType>() && outSpec.dataType == ImageTypeSpec::getType<outType>()) \
+                return wrap<Unary>(channelwiseAffine<inType, outType>(spec));
+        ACCELERATED_IMAGE_FOR_EACH_TYPE_PAIR(X)
         #undef X
         assert(false);
     }

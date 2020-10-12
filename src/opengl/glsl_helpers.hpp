@@ -9,6 +9,7 @@ namespace opengl {
 namespace {
 
 namespace glsl {
+
 template <class T> std::string wrapToVec(const std::vector<T> &values, const ImageTypeSpec &spec) {
     assert(!values.empty() && values.size() <= 4);
     std::ostringstream oss;
@@ -24,6 +25,14 @@ template <class T> std::string wrapToVec(const std::vector<T> &values, const Ima
     }
     oss << ")";
     return oss.str();
+}
+
+template <class T> std::string wrapToFloatVec(const std::vector<T> &values) {
+    return wrapToVec(values, ImageTypeSpec {
+        int(values.size()),
+        ImageTypeSpec::DataType::FLOAT32,
+        ImageTypeSpec::StorageType::GPU_OPENGL // dummy value
+    });
 }
 
 std::string swizzleSubset(std::size_t n) {

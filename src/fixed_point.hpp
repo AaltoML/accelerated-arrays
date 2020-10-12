@@ -27,7 +27,10 @@ template <class T> struct FixedPoint {
         const double v = isSigned()
             ? (unsignedMax() * c - 1) / 2
             : max() * c;
-        return static_cast<T>(v);
+        // This rounding to nearest was not specified in the glReadPixels manual
+        // page, but with the fixed point types on the GPU, seems to work like
+        // this
+        return static_cast<T>(v + 0.5);
     }
 
     inline static constexpr double min() { return std::numeric_limits<T>::lowest(); }

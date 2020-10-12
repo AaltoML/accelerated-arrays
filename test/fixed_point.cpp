@@ -16,7 +16,7 @@ TEST_CASE( "Unsigned fixed point", "[accelerated-arrays]" ) {
     REQUIRE(std::fabs(F::floatMax() - 1.0) < 1e-5);
     REQUIRE(std::fabs(F::floatMin()) < 1e-5);
 
-    REQUIRE(a.value == int(0xffff*0.5));
+    REQUIRE(a.value == int(0xffff*0.5 + 0.5));
     REQUIRE(std::fabs(a.toFloat() - 0.5) < 1.0/10000);
 
     auto c = a*b;

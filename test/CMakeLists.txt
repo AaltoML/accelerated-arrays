@@ -1,6 +1,6 @@
 enable_testing()
 
-set(TEST_FILES main.cpp convolution.cpp fixed_point.cpp thread_pool.cpp)
+set(TEST_FILES main.cpp fixed_point.cpp operations.cpp thread_pool.cpp)
 # The tests use GLFW, which is not relevant on Android
 if (WITH_OPENGL AND NOT ANDROID)
   list(APPEND TEST_FILES opengl.cpp)

@@ -161,6 +161,37 @@ struct Image : ImageTypeSpec {
     x(FixedPoint<std::uint32_t>) \
     x(FixedPoint<std::int32_t>)
 
+#define ACCELERATED_IMAGE_FOR_EACH_TYPE_WITH_EXTRAS(x, extra) \
+    x(std::uint8_t, extra) \
+    x(std::int8_t, extra) \
+    x(std::uint16_t, extra) \
+    x(std::int16_t, extra) \
+    x(std::uint32_t, extra) \
+    x(std::int32_t, extra) \
+    x(float, extra) \
+    x(FixedPoint<std::uint8_t>, extra) \
+    x(FixedPoint<std::int8_t>, extra) \
+    x(FixedPoint<std::uint16_t>, extra) \
+    x(FixedPoint<std::int16_t>, extra) \
+    x(FixedPoint<std::uint32_t>, extra) \
+    x(FixedPoint<std::int32_t>, extra)
+
+// quite heavy, use sparingly
+#define ACCELERATED_IMAGE_FOR_EACH_TYPE_PAIR(x) \
+    ACCELERATED_IMAGE_FOR_EACH_TYPE_WITH_EXTRAS(x, std::uint8_t) \
+    ACCELERATED_IMAGE_FOR_EACH_TYPE_WITH_EXTRAS(x, std::int8_t) \
+    ACCELERATED_IMAGE_FOR_EACH_TYPE_WITH_EXTRAS(x, std::uint16_t) \
+    ACCELERATED_IMAGE_FOR_EACH_TYPE_WITH_EXTRAS(x, std::int16_t) \
+    ACCELERATED_IMAGE_FOR_EACH_TYPE_WITH_EXTRAS(x, std::uint32_t) \
+    ACCELERATED_IMAGE_FOR_EACH_TYPE_WITH_EXTRAS(x, std::int32_t) \
+    ACCELERATED_IMAGE_FOR_EACH_TYPE_WITH_EXTRAS(x, float) \
+    ACCELERATED_IMAGE_FOR_EACH_TYPE_WITH_EXTRAS(x, FixedPoint<std::uint8_t>) \
+    ACCELERATED_IMAGE_FOR_EACH_TYPE_WITH_EXTRAS(x, FixedPoint<std::int8_t>) \
+    ACCELERATED_IMAGE_FOR_EACH_TYPE_WITH_EXTRAS(x, FixedPoint<std::uint16_t>) \
+    ACCELERATED_IMAGE_FOR_EACH_TYPE_WITH_EXTRAS(x, FixedPoint<std::int16_t>) \
+    ACCELERATED_IMAGE_FOR_EACH_TYPE_WITH_EXTRAS(x, FixedPoint<std::uint32_t>) \
+    ACCELERATED_IMAGE_FOR_EACH_TYPE_WITH_EXTRAS(x, FixedPoint<std::int32_t>)
+
 #define ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(x) \
     x(std::uint8_t, ImageTypeSpec::DataType::UINT8) \
     x(std::int8_t, ImageTypeSpec::DataType::SINT8) \

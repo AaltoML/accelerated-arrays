@@ -1,5 +1,6 @@
 #include <atomic>
 #include <cassert>
+#include <cmath>
 #include <sstream>
 
 #include "adapters.hpp"
@@ -13,6 +14,8 @@ namespace operations {
 namespace {
 typedef ::accelerated::operations::fill::Spec FillSpec;
 typedef ::accelerated::operations::fixedConvolution2D::Spec FixedConvolution2DSpec;
+typedef ::accelerated::operations::pixelwiseAffine::Spec PixelwiseAffineSpec;
+typedef ::accelerated::operations::channelwiseAffine::Spec ChannelwiseAffineSpec;
 using ::accelerated::operations::Function;
 
 void checkSpec(const ImageTypeSpec &spec) {
@@ -50,8 +53,107 @@ Shader<Nullary>::Builder fill(const FillSpec &spec, const ImageTypeSpec &imageSp
     };
 }
 
+Shader<Unary>::Builder pixelwiseAffine(const PixelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
+    std::string fragmentShaderBody;
+    {
+        std::ostringstream oss;
+
+        const auto swiz = glsl::swizzleSubset(outSpec.channels);
+
+        if (!spec.linear.empty()) {
+            assert(outSpec.channels == int(spec.linear.size()));
+            assert(inSpec.channels == int(spec.linear.at(0).size()));
+            // TODO: could use smaller mat or dot product for different
+            // special cases for perhaps improved performance
+            oss << "const mat4 m = mat4(";
+            for (int col = 0; col < 4; ++col) {
+                oss << "vec4(";
+                for (int row = 0; row < 4; ++row) {
+                    if (row > 0) oss << ", ";
+                    if (row < int(spec.linear.size()) && col < int(spec.linear.at(row).size()))
+                        oss << spec.linear.at(row).at(col);
+                    else
+                        oss << "0";
+                }
+                oss << ")";
+                if (col < 3) oss << ",";
+                oss << "\n";
+            }
+            oss << ");\n";
+        }
+
+        oss << "void main() {\n";
+        oss << "outValue = " << getGlslVecType(outSpec) << "((";
+        if (!spec.linear.empty()) oss << "m * ";
+        oss << "vec4(texelFetch(u_texture, ivec2(v_texCoord * vec2(u_outSize)), 0))\n";
+        oss << ")." << swiz;
+        if (!spec.bias.empty()) {
+            assert(outSpec.channels == int(spec.bias.size()));
+            oss << " + " << glsl::wrapToFloatVec(spec.bias);
+        }
+        oss << ");\n";
+        oss << "}\n";
+
+        fragmentShaderBody = oss.str();
+    }
+
+    return [fragmentShaderBody, inSpec, outSpec]() {
+        std::unique_ptr< Shader<Unary> > shader(new Shader<Unary>);
+        shader->resources = GlslPipeline::create(fragmentShaderBody.c_str(), { inSpec }, outSpec);
+        GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
+
+        shader->function = [&pipeline, inSpec, outSpec](Image &input, Image &output) {
+            // if not using wrapChecked, better check here than experience
+            // random crashes if accidentally using a wrong image type
+            assert(input == inSpec);
+            assert(output == outSpec);
+            Binder binder(pipeline);
+            Binder inputBinder(pipeline.bindTexture(0, input.getTextureId()));
+            pipeline.call(output.getFrameBuffer());
+        };
+
+        return shader;
+    };
+}
+
+Shader<Unary>::Builder channelwiseAffine(const ChannelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
+    std::string fragmentShaderBody;
+    {
+        std::ostringstream oss;
+        const auto swiz = glsl::swizzleSubset(inSpec.channels);
+
+        oss << "void main() {\n";
+        oss << "outValue = " << getGlslVecType(outSpec) << "(";
+        if (std::fabs(spec.scale - 1.0) > 1e-10) oss << "float(" << spec.scale << ") * ";
+        oss << "vec4(texelFetch(u_texture, ivec2(v_texCoord * vec2(u_outSize)), 0))." << swiz << "\n";
+        if (std::fabs(spec.bias) > 1e-10) oss << " + float(" << spec.bias << ")";
+        oss << ");\n";
+        oss << "}\n";
+
+        fragmentShaderBody = oss.str();
+    }
+
+    return [fragmentShaderBody, inSpec, outSpec]() {
+        std::unique_ptr< Shader<Unary> > shader(new Shader<Unary>);
+        shader->resources = GlslPipeline::create(fragmentShaderBody.c_str(), { inSpec }, outSpec);
+        GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
+
+        shader->function = [&pipeline, inSpec, outSpec](Image &input, Image &output) {
+            assert(input == inSpec);
+            assert(output == outSpec);
+            Binder binder(pipeline);
+            Binder inputBinder(pipeline.bindTexture(0, input.getTextureId()));
+            pipeline.call(output.getFrameBuffer());
+        };
+
+        return shader;
+    };
+}
+
 Shader<Unary>::Builder fixedConvolution2D(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec) {
     assert(!spec.kernel.empty());
+
+    log_warn("TODO: convolution border property is not handled yet");
 
     std::string fragmentShaderBody;
     {
@@ -184,6 +286,14 @@ public:
 
     Function create(const FillSpec &spec, const ImageTypeSpec &imageSpec) final {
         return wrapChecked<Nullary>(fill(spec, imageSpec), imageSpec);
+    }
+
+    Function create(const PixelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
+        return wrap<Unary>(pixelwiseAffine(spec, inSpec, outSpec));
+    }
+
+    Function create(const ChannelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
+        return wrap<Unary>(channelwiseAffine(spec, inSpec, outSpec));
     }
 };
 }
