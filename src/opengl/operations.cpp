@@ -1,5 +1,4 @@
 #include <atomic>
-#include <cassert>
 #include <cmath>
 #include <sstream>
 
@@ -19,11 +18,11 @@ typedef ::accelerated::operations::channelwiseAffine::Spec ChannelwiseAffineSpec
 using ::accelerated::operations::Function;
 
 void checkSpec(const ImageTypeSpec &spec) {
-    assert(Image::isCompatible(spec.storageType));
+    aa_assert(Image::isCompatible(spec.storageType));
 }
 
 Shader<Nullary>::Builder fill(const FillSpec &spec, const ImageTypeSpec &imageSpec) {
-    assert(!spec.value.empty());
+    aa_assert(!spec.value.empty());
 
     // GLSL shader source is built in syncrhonously on the calling thread
     // to minimize unnecessary stuff on the GL thread, even though this
@@ -61,8 +60,8 @@ Shader<Unary>::Builder pixelwiseAffine(const PixelwiseAffineSpec &spec, const Im
         const auto swiz = glsl::swizzleSubset(outSpec.channels);
 
         if (!spec.linear.empty()) {
-            assert(outSpec.channels == int(spec.linear.size()));
-            assert(inSpec.channels == int(spec.linear.at(0).size()));
+            aa_assert(outSpec.channels == int(spec.linear.size()));
+            aa_assert(inSpec.channels == int(spec.linear.at(0).size()));
             // TODO: could use smaller mat or dot product for different
             // special cases for perhaps improved performance
             oss << "const mat4 m = mat4(";
@@ -88,7 +87,7 @@ Shader<Unary>::Builder pixelwiseAffine(const PixelwiseAffineSpec &spec, const Im
         oss << "vec4(texelFetch(u_texture, ivec2(v_texCoord * vec2(u_outSize)), 0))\n";
         oss << ")." << swiz;
         if (!spec.bias.empty()) {
-            assert(outSpec.channels == int(spec.bias.size()));
+            aa_assert(outSpec.channels == int(spec.bias.size()));
             oss << " + " << glsl::wrapToFloatVec(spec.bias);
         }
         oss << ");\n";
@@ -105,8 +104,8 @@ Shader<Unary>::Builder pixelwiseAffine(const PixelwiseAffineSpec &spec, const Im
         shader->function = [&pipeline, inSpec, outSpec](Image &input, Image &output) {
             // if not using wrapChecked, better check here than experience
             // random crashes if accidentally using a wrong image type
-            assert(input == inSpec);
-            assert(output == outSpec);
+            aa_assert(input == inSpec);
+            aa_assert(output == outSpec);
             Binder binder(pipeline);
             Binder inputBinder(pipeline.bindTexture(0, input.getTextureId()));
             pipeline.call(output.getFrameBuffer());
@@ -139,8 +138,8 @@ Shader<Unary>::Builder channelwiseAffine(const ChannelwiseAffineSpec &spec, cons
         GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
 
         shader->function = [&pipeline, inSpec, outSpec](Image &input, Image &output) {
-            assert(input == inSpec);
-            assert(output == outSpec);
+            aa_assert(input == inSpec);
+            aa_assert(output == outSpec);
             Binder binder(pipeline);
             Binder inputBinder(pipeline.bindTexture(0, input.getTextureId()));
             pipeline.call(output.getFrameBuffer());
@@ -151,7 +150,7 @@ Shader<Unary>::Builder channelwiseAffine(const ChannelwiseAffineSpec &spec, cons
 }
 
 Shader<Unary>::Builder fixedConvolution2D(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec) {
-    assert(!spec.kernel.empty());
+    aa_assert(!spec.kernel.empty());
 
     log_warn("TODO: convolution border property is not handled yet");
 
@@ -255,7 +254,7 @@ private:
         NAry &get() {
             // should never be called at the same time with other actions
             std::shared_ptr<S> tmp = std::atomic_load(&shader);
-            assert(tmp && tmp->function);
+            aa_assert(tmp && tmp->function);
             return tmp->function;
         }
     };

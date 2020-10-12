@@ -1,12 +1,12 @@
 #pragma once
 
-#include <cassert>
 #include <cstdint>
 #include <memory>
 #include <vector>
 
 #include "future.hpp"
 #include "fixed_point.hpp"
+#include "log_and_assert.hpp"
 
 namespace accelerated {
 struct ImageTypeSpec {
@@ -118,12 +118,12 @@ struct Image : ImageTypeSpec {
 
     // add some type safety wrappers
     template <class T> Future read(T *outputData) {
-        assert(isType<T>());
+        aa_assert(isType<T>());
         return readRaw(reinterpret_cast<std::uint8_t*>(outputData));
     }
 
     template <class T> Future write(const T *inputData) {
-        assert(isType<T>());
+        aa_assert(isType<T>());
         return writeRaw(reinterpret_cast<const std::uint8_t*>(inputData));
     }
 
@@ -133,7 +133,7 @@ struct Image : ImageTypeSpec {
     }
 
     template <class T> inline Future write(const std::vector<T> &input) {
-        assert(input.size() == numberOfScalars());
+        aa_assert(input.size() == numberOfScalars());
         return write<T>(input.data());
     }
 

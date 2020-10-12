@@ -7,6 +7,7 @@ namespace accelerated {
 namespace opengl {
 namespace {
 void logSpec(const ImageTypeSpec &spec) {
+    (void)spec;
     LOG_TRACE("spec: %d channels, %d bits, %s %s%s%s",
         spec.channels, int(spec.bytesPerChannel()*8),
         ImageTypeSpec::isSigned(spec.dataType) ? "signed" : "",
@@ -29,12 +30,12 @@ int getTextureInternalFormat(const ImageTypeSpec &spec) {
             case 2: X(GL_RG);
             case 3: X(GL_RGB);
             case 4: X(GL_RGBA);
-            default: assert(false); break;
+            default: aa_assert(false); break;
         }
     }
     */
     const bool allowLossy = false;
-    #define LOSSY(x) assert(allowLossy && #x); X(x)
+    #define LOSSY(x) aa_assert(allowLossy && #x); X(x)
 
     if (spec.channels == 1) {
         switch (spec.dataType) {
@@ -132,8 +133,8 @@ int getTextureInternalFormat(const ImageTypeSpec &spec) {
     #undef LOSSY
     #undef X
 
-    assert(false && "no suitable internal format");
-    assert(false && "not implemented");
+    aa_assert(false && "no suitable internal format");
+    aa_assert(false && "not implemented");
     return -1;
 }
 
@@ -158,13 +159,13 @@ int getCpuFormat(const ImageTypeSpec &spec) {
         }
     }
     #undef X
-    assert(false);
+    aa_assert(false);
     return -1;
 }
 
 std::string getGlslSamplerType(const ImageTypeSpec &spec) {
     if (spec.storageType == ImageTypeSpec::StorageType::GPU_OPENGL_EXTERNAL) {
-        assert(spec.dataType == ImageTypeSpec::DataType::UINT8);
+        aa_assert(spec.dataType == ImageTypeSpec::DataType::UINT8);
         return "samplerExternalOES";
     }
 
@@ -227,7 +228,7 @@ int getReadPixelFormat(const ImageTypeSpec &spec) {
         }
     }
     #undef X
-    assert(false);
+    aa_assert(false);
     return -1;
 }
 
@@ -250,7 +251,7 @@ int getCpuType(const ImageTypeSpec &spec) {
         case ImageTypeSpec::DataType::SFIXED32: X(GL_INT);
     }
     #undef X
-    assert(false);
+    aa_assert(false);
     return -1;
 }
 
@@ -263,10 +264,10 @@ int getBindType(const ImageTypeSpec &spec) {
         LOG_TRACE("getBindType:GL_TEXTURE_EXTERNAL_OES");
         return GL_TEXTURE_EXTERNAL_OES;
     #else
-        assert(false && "GL_TEXTURE_EXTERNAL_OES is only available in OpenGL ES");
+        aa_assert(false && "GL_TEXTURE_EXTERNAL_OES is only available in OpenGL ES");
     #endif
     }
-    assert(false);
+    aa_assert(false);
     return -1;
 }
 

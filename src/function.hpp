@@ -1,11 +1,11 @@
 #pragma once
 
 #include <array>
-#include <cassert>
 #include <functional>
 #include <vector>
 
 #include "future.hpp"
+#include "log_and_assert.hpp"
 
 namespace accelerated {
 struct Image;
@@ -40,7 +40,7 @@ template <class T, int N> Future wrapNAryBody(
     Processor &p)
 {
     (void)nInputs;
-    assert(nInputs == N);
+    aa_assert(nInputs == N);
     std::array<T*, N> args;
     for (int i = 0; i < nInputs; ++i) args[i] = &T::castFrom(*inputs[i]);
     auto &out = T::castFrom(output);
@@ -82,8 +82,8 @@ template <class T, class Spec>
 ::accelerated::operations::Function
 wrapChecked(const std::function<void(T **inputs, int nInputs, T &output)> &syncFunc, Processor &p, const Spec &spec) {
     return [syncFunc, &p, spec](Image **inputs, int nInputs, Image &output) -> Future {
-        assert(output == spec);
-        for (int i = 0; i < nInputs; ++i) assert(*inputs[i] == spec);
+        aa_assert(output == spec);
+        for (int i = 0; i < nInputs; ++i) aa_assert(*inputs[i] == spec);
         return wrapBody(syncFunc, inputs, nInputs, output, p);
     };
 }
@@ -93,7 +93,7 @@ std::function<void(T **inputs, int nInputs, T &output)>
 convert(const std::function<void(T &output)> &syncFunc) {
     return [syncFunc](T **inputs, int nInputs, T &output) {
         (void)inputs; (void)nInputs;
-        assert(nInputs == 0);
+        aa_assert(nInputs == 0);
         syncFunc(output);
     };
 }
@@ -102,7 +102,7 @@ template <class T>
 std::function<void(T **inputs, int nInputs, T &output)>
 convert(const std::function<void(T &input, T &output)> &syncFunc) {
     return [syncFunc](T **inputs, int nInputs, T &output) {
-        assert(nInputs == 1); (void)nInputs;
+        aa_assert(nInputs == 1); (void)nInputs;
         syncFunc(*inputs[0], output);
     };
 }
@@ -111,7 +111,7 @@ template <class T>
 std::function<void(T **inputs, int nInputs, T &output)>
 convert(const std::function<void(T &a, T &b, T &output)> &syncFunc) {
     return [syncFunc](T **inputs, int nInputs, T &output) {
-        assert(nInputs == 2); (void)nInputs;
+        aa_assert(nInputs == 2); (void)nInputs;
         syncFunc(*inputs[0], *inputs[1], output);
     };
 }

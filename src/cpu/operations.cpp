@@ -1,4 +1,3 @@
-#include <cassert>
 #include <iostream>
 
 #include "operations.hpp"
@@ -18,7 +17,7 @@ using ::accelerated::operations::convert;
 
 void checkSpec(const ImageTypeSpec &spec) {
     (void)spec;
-    assert(spec.storageType == ImageTypeSpec::StorageType::CPU);
+    aa_assert(spec.storageType == ImageTypeSpec::StorageType::CPU);
 }
 
 /*void forEachPixel(Image &img, const std::function<void(Image &img, int x, int y)> &f) {
@@ -49,11 +48,11 @@ template <class T> Nullary fill(const FillSpec &spec) {
 
 template <class InType, class OutType> Unary pixelwiseAffine(const PixelwiseAffineSpec &spec) {
     return [spec](Image &input, Image &output) {
-        assert(int(spec.linear.size()) == output.channels);
+        aa_assert(int(spec.linear.size()) == output.channels);
         forEachPixelAndChannel(output, [&spec, &input](Image &output, int x, int y, int c) {
             double v = spec.bias.at(c);
             const auto &matRow = spec.linear.at(c);
-            assert(int(matRow.size()) == input.channels);
+            aa_assert(int(matRow.size()) == input.channels);
             for (int inChan = 0; inChan < input.channels; ++inChan) {
                 const double inValue = input.get<InType>(x, y, inChan);
                 v += matRow.at(inChan) * inValue;
@@ -66,7 +65,7 @@ template <class InType, class OutType> Unary pixelwiseAffine(const PixelwiseAffi
 
 template <class InType, class OutType> Unary channelwiseAffine(const ChannelwiseAffineSpec &spec) {
     return [spec](Image &input, Image &output) {
-        assert(output.channels == input.channels);
+        aa_assert(output.channels == input.channels);
         forEachPixelAndChannel(output, [&spec, &input](Image &output, int x, int y, int c) {
             const double inValue = input.get<InType>(x, y, c);
             output.set<OutType>(x, y, c, static_cast<OutType>(spec.scale * inValue + spec.bias));
@@ -75,7 +74,7 @@ template <class InType, class OutType> Unary channelwiseAffine(const Channelwise
 }
 
 template <class T> Unary fixedConvolution2D(const FixedConvolution2DSpec &spec) {
-    assert(!spec.kernel.empty());
+    aa_assert(!spec.kernel.empty());
     return [spec](Image &input, Image &output) {
         const int kernelXOffset = spec.getKernelXOffset();
         const int kernelYOffset = spec.getKernelYOffset();
@@ -126,18 +125,18 @@ public:
                 return wrapChecked(fixedConvolution2D<dtype>(spec), imageSpec);
         ACCELERATED_IMAGE_FOR_EACH_TYPE(X)
         #undef X
-        assert(false);
+        aa_assert(false);
         return {};
     }
 
     Function create(const FillSpec &spec, const ImageTypeSpec &imageSpec) final {
-        assert(int(spec.value.size()) == imageSpec.channels);
+        aa_assert(int(spec.value.size()) == imageSpec.channels);
         #define X(dtype) \
             if (imageSpec.dataType == ImageTypeSpec::getType<dtype>()) \
                 return wrapChecked(fill<dtype>(spec), imageSpec);
         ACCELERATED_IMAGE_FOR_EACH_TYPE(X)
         #undef X
-        assert(false);
+        aa_assert(false);
         return {};
     }
 
@@ -148,7 +147,7 @@ public:
                 return wrap<Unary>(pixelwiseAffine<inType, outType>(spec));
         ACCELERATED_IMAGE_FOR_EACH_TYPE_PAIR(X)
         #undef X
-        assert(false);
+        aa_assert(false);
         return {};
     }
 
@@ -158,7 +157,7 @@ public:
                 return wrap<Unary>(channelwiseAffine<inType, outType>(spec));
         ACCELERATED_IMAGE_FOR_EACH_TYPE_PAIR(X)
         #undef X
-        assert(false);
+        aa_assert(false);
         return {};
     }
 };

@@ -1,8 +1,9 @@
 #pragma once
 
+#include <sstream>
+
 #include "image.hpp"
 #include "adapters.hpp"
-#include <sstream>
 
 namespace accelerated {
 namespace opengl {
@@ -11,7 +12,7 @@ namespace {
 namespace glsl {
 
 template <class T> std::string wrapToVec(const std::vector<T> &values, const ImageTypeSpec &spec) {
-    assert(!values.empty() && values.size() <= 4);
+    aa_assert(!values.empty() && values.size() <= 4);
     std::ostringstream oss;
     if (values.size() == 1) {
         oss << values.at(0);
@@ -36,7 +37,7 @@ template <class T> std::string wrapToFloatVec(const std::vector<T> &values) {
 }
 
 std::string swizzleSubset(std::size_t n) {
-    assert(n > 0 && n <= 4);
+    aa_assert(n > 0 && n <= 4);
     return std::string("rgba").substr(0, n);
 }
 

@@ -29,6 +29,7 @@ install(FILES
   src/future.hpp
   src/image.hpp
   src/standard_ops.hpp
+  src/log_and_assert.hpp # TODO: should not be exposed
   DESTINATION include/${LIBNAME}
   COMPONENT Headers)
 

@@ -1,7 +1,7 @@
-#include <cassert>
 #include <future>
 
 #include "future.hpp"
+#include "log_and_assert.hpp"
 
 namespace accelerated {
 namespace {
@@ -56,7 +56,7 @@ Future Future::instantlyResolved() {
 }
 
 void Future::wait() {
-    assert(state);
+    aa_assert(state);
     return state->wait();
 }
 

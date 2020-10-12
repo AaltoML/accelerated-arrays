@@ -1,4 +1,3 @@
-#include <cassert>
 #include <cstring>
 
 #include "read_adapters.hpp"
@@ -21,7 +20,7 @@ struct Adapter {
         cpuBuffer.resize(buffer->size());
         const int origRowWidth = image.width * image.bytesPerPixel();
         const int bufRowWidth = buffer->width * buffer->bytesPerPixel();
-        assert(origRowWidth < bufRowWidth);
+        aa_assert(origRowWidth < bufRowWidth);
         log_debug("repacking to rows of %d bytes from rows of length %d", origRowWidth, bufRowWidth);
 
         cpuFunction = [this, origRowWidth, bufRowWidth](std::uint8_t *out) {
@@ -36,7 +35,7 @@ struct Adapter {
                 inOffset += bufRowWidth;
             }
             //for (const auto &el : cpuBuffer) LOG_TRACE("cpu-buffer-packed: %d", int(el));
-            assert(inOffset == int(buffer->size()));
+            aa_assert(inOffset == int(buffer->size()));
         };
         return true;
     }
@@ -46,8 +45,8 @@ operations::Shader<Unary>::Builder createFunction(const Image &img, int targetCh
     int origChannelsPerRow = img.channels * img.width;
 
     // only support these atm
-    assert(targetChannels > img.channels);
-    assert(targetChannels % img.channels == 0); // TODO
+    aa_assert(targetChannels > img.channels);
+    aa_assert(targetChannels % img.channels == 0); // TODO
 
     targetWidth = origChannelsPerRow / targetChannels;
     if (origChannelsPerRow % targetChannels != 0) {
@@ -108,22 +107,22 @@ std::function<Future(std::uint8_t*)> createReadAdpater(
     int targetChannels = image.channels;
 
     #ifdef ACCELERATED_ARRAYS_USE_OPENGL_ES
-        assert(image.bytesPerChannel() != 2);
+        aa_assert(image.bytesPerChannel() != 2);
         #ifdef ACCELERATED_ARRAYS_MAX_COMPATIBILITY_READS
-            assert(image.bytesPerChannel() == 1);
+            aa_assert(image.bytesPerChannel() == 1);
             targetChannels = 4;
         #endif
         #ifndef ACCELERATED_ARRAYS_DODGY_READS
-        assert(!ImageTypeSpec::isSigned(image.dataType));
+        aa_assert(!ImageTypeSpec::isSigned(image.dataType));
         #endif
     #else
         if (image.channels == 2) targetChannels = 4;
     #endif
-    assert(targetDataType == image.dataType); // TODO
+    aa_assert(targetDataType == image.dataType); // TODO
 
     int targetWidth;
     adapter->function = opFactory.wrap<Unary>(createFunction(image, targetChannels, targetWidth));
-    assert(adapter->function);
+    aa_assert(adapter->function);
 
     adapter->buffer = imageFactory.create(
         targetWidth,
@@ -136,7 +135,7 @@ std::function<Future(std::uint8_t*)> createReadAdpater(
     }
 
     return [adapter, &image, &processor](std::uint8_t *outData) -> Future {
-        // assert(adapter->buffer->supportsDirectRead());
+        // aa_assert(adapter->buffer->supportsDirectRead());
         ::accelerated::operations::callUnary(adapter->function, image, *adapter->buffer);
         // no need to wait if single-threaded
         if (adapter->cpuFunction) {

@@ -22,13 +22,13 @@ public:
     }
 
     Future readRaw(std::uint8_t *outputData) final {
-        assert(false && "not supported");
+        aa_assert(false && "not supported");
         (void)outputData;
         return Future({});
     }
 
     Future writeRaw(const std::uint8_t *inputData) final {
-        assert(false && "not supported");
+        aa_assert(false && "not supported");
         (void)inputData;
         return Future({});
     }
@@ -42,7 +42,7 @@ public:
     }
 
     FrameBuffer &getFrameBuffer() final {
-        assert(false && "not supported");
+        aa_assert(false && "not supported");
         return *reinterpret_cast<FrameBuffer*>(0);
     }
 };
@@ -83,7 +83,7 @@ public:
             auto fb = builder();
             {
                 std::lock_guard<std::mutex> lock(mutex);
-                assert(!frameBuffers.count(ref));
+                aa_assert(!frameBuffers.count(ref));
                 LOG_TRACE("frame buffer for reference %p set to %d", (void*)ref, fb->getId());
                 frameBuffers[ref] = fb;
             }
@@ -104,6 +104,7 @@ public:
 
         processor.enqueue([buf, ref]() {
             buf->destroy();
+            (void)ref;
             LOG_TRACE("frame buffer for reference %p destroyed", (void*)ref);
         });
     }
@@ -169,7 +170,7 @@ public:
     }
 
     Future writeRaw(const std::uint8_t *inputData) final {
-        assert(supportsDirectWrite());
+        aa_assert(supportsDirectWrite());
         LOG_TRACE("writing frame buffer reference %p", (void*)this);
         return manager.enqueue(this, [inputData](FrameBuffer &fb) {
             fb.writePixels(inputData);
@@ -223,7 +224,7 @@ std::unique_ptr<Image> FrameBufferManager::wrapScreen(int w, int h) {
 }
 
 ImageTypeSpec Image::getSpec(int channels, DataType dtype, StorageType stype) {
-    assert(stype == StorageType::GPU_OPENGL || stype == StorageType::GPU_OPENGL_EXTERNAL);
+    aa_assert(stype == StorageType::GPU_OPENGL || stype == StorageType::GPU_OPENGL_EXTERNAL);
     return ImageTypeSpec {
         channels,
         dtype,
@@ -237,7 +238,7 @@ bool Image::isCompatible(ImageTypeSpec::StorageType storageType) {
 }
 
 Image &Image::castFrom(::accelerated::Image &image) {
-    assert(isCompatible(image.storageType));
+    aa_assert(isCompatible(image.storageType));
     return reinterpret_cast<Image&>(image);
 }
 

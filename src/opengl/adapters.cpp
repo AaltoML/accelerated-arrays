@@ -160,13 +160,13 @@ public:
             LOG_TRACE("generated frame buffer %d", id);
             CHECK_ERROR(__FUNCTION__);
 
-            assert(spec.storageType == Image::StorageType::GPU_OPENGL);
+            aa_assert(spec.storageType == Image::StorageType::GPU_OPENGL);
 
             Binder binder(*this);
 
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture->getId(), 0);
             CHECK_ERROR(__FUNCTION__);
-            assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+            aa_assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
 
             GLenum bufs[1] = { GL_COLOR_ATTACHMENT0 }; // single output at location 0
             glDrawBuffers(1, bufs);
@@ -235,7 +235,7 @@ public:
         // our CPU data is tightly packed and not 4-byte aligned (default)
         GLint origPackAlignment;
         glGetIntegerv(GL_PACK_ALIGNMENT, &origPackAlignment);
-        assert(origPackAlignment >= 1 && origPackAlignment <= 4);
+        aa_assert(origPackAlignment >= 1 && origPackAlignment <= 4);
         glPixelStorei(GL_PACK_ALIGNMENT, 1);
         CHECK_ERROR(__FUNCTION__);
 
@@ -244,7 +244,7 @@ public:
         glReadPixels(0, 0, width, height, getReadPixelFormat(spec), getCpuType(spec), pixels);
 
         if (!isScreen()) {
-            assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+            aa_assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
             CHECK_ERROR(__FUNCTION__);
         }
 
@@ -253,15 +253,15 @@ public:
     }
 
     void writePixels(const uint8_t *pixels) final {
-        assert(!isScreen() && "won't write pixels directly to screen");
-        assert(texture && "won't write directly to external frame buffer");
+        aa_assert(!isScreen() && "won't write pixels directly to screen");
+        aa_assert(texture && "won't write directly to external frame buffer");
 
         Binder binder(*texture);
 
         // our CPU data is tightly packed and not 4-byte aligned (default)
         GLint origPackAlignment;
         glGetIntegerv(GL_PACK_ALIGNMENT, &origPackAlignment);
-        assert(origPackAlignment >= 1 && origPackAlignment <= 4);
+        aa_assert(origPackAlignment >= 1 && origPackAlignment <= 4);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         CHECK_ERROR(__FUNCTION__);
 
@@ -281,14 +281,14 @@ public:
     int getId() const { return id; }
 
     int getTextureId() const final {
-        assert(texture && "cannot get texture ID of external frame buffer");
+        aa_assert(texture && "cannot get texture ID of external frame buffer");
         return texture->getId();
     }
 };
 
 static GLuint loadShader(GLenum shaderType, const char* shaderSource) {
     const GLuint shader = glCreateShader(shaderType);
-    assert(shader);
+    aa_assert(shader);
 
     LOG_TRACE("compiling shader:\n %s\n", shaderSource);
 
@@ -301,14 +301,14 @@ static GLuint loadShader(GLenum shaderType, const char* shaderSource) {
         GLint len = 0;
 
         glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &len);
-        assert(len);
+        aa_assert(len);
 
         std::vector<char> buf(static_cast<std::size_t>(len));
         glGetShaderInfoLog(shader, len, nullptr, buf.data());
         log_error("Error compiling shader:\n%s", buf.data());
         log_error("Failing shader source:\n%s", shaderSource);
         glDeleteShader(shader);
-        assert(false);
+        aa_assert(false);
     }
 
     return shader;
@@ -318,7 +318,7 @@ GLuint createProgram(const char* vertexSource, const char* fragmentSource) {
     const GLuint vertexShader = loadShader(GL_VERTEX_SHADER, vertexSource);
     const GLuint fragmentShader = loadShader(GL_FRAGMENT_SHADER, fragmentSource);
     const GLuint program = glCreateProgram();
-    assert(program);
+    aa_assert(program);
     glAttachShader(program, vertexShader);
     CHECK_ERROR(__FUNCTION__);
     glAttachShader(program, fragmentShader);
@@ -335,7 +335,7 @@ GLuint createProgram(const char* vertexSource, const char* fragmentSource) {
             log_error("Could not link program:\n%s", buf.data());
         }
         glDeleteProgram(program);
-        assert(false);
+        aa_assert(false);
     }
     return program;
 }
@@ -544,7 +544,7 @@ private:
 
     std::string textureName(unsigned index, unsigned nTextures) const {
         std::ostringstream oss;
-        assert(index < nTextures);
+        aa_assert(index < nTextures);
         oss << "u_texture";
         if (nTextures >= 2 || index > 1) {
             oss << (index + 1);
@@ -606,7 +606,7 @@ public:
                 log_warn("glClampColor not available in OpenGL ES so can't use SNORM render targets");
 
                 #ifndef ACCELERATED_ARRAYS_DODGY_READS
-                    assert(false);
+                    aa_assert(false);
                 #endif
             #else
                 log_warn("SNORM render target requires GL bug fixes only found on Reddit. Use with caution.");

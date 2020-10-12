@@ -3,7 +3,6 @@
 #include "../image.hpp"
 
 #include <array>
-#include <cassert>
 #include <cstring>
 
 namespace accelerated {
@@ -12,7 +11,7 @@ class Image : public ::accelerated::Image {
 public:
     template<class T, std::size_t N> std::array<T, N> get(int x, int y) const {
         checkType<T>();
-        assert(channels == N);
+        aa_assert(channels == N);
         std::array<T, N> result;
         get(x, y, reinterpret_cast<std::uint8_t*>(&result));
         return result;
@@ -20,8 +19,8 @@ public:
 
     template<class T, std::size_t N> void set(int x, int y, const std::array<T, N> &array) {
         checkType<T>();
-        assert(channels == N);
-        assert(x >= 0 && y >= 0 && x < width && y < height);
+        aa_assert(channels == N);
+        aa_assert(x >= 0 && y >= 0 && x < width && y < height);
         set(x, y, reinterpret_cast<const std::uint8_t*>(&array));
     }
 
@@ -34,7 +33,7 @@ public:
 
     template<class T> void set(int x, int y, int channel, T value) {
         checkType<T>();
-        assert(x >= 0 && y >= 0 && x < width && y < height);
+        aa_assert(x >= 0 && y >= 0 && x < width && y < height);
         set(x, y, channel, reinterpret_cast<const std::uint8_t*>(&value));
     }
 
@@ -66,7 +65,7 @@ public:
     }
 
     static Image &castFrom(::accelerated::Image &image) {
-        assert(image.storageType == StorageType::CPU);
+        aa_assert(image.storageType == StorageType::CPU);
         return reinterpret_cast<Image&>(image);
     }
 

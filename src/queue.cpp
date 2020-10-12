@@ -1,11 +1,11 @@
-#include "future.hpp"
-
-#include <cassert>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
 #include <thread>
 #include <vector>
+
+#include "future.hpp"
+#include "log_and_assert.hpp"
 
 namespace accelerated {
 namespace {
@@ -111,7 +111,7 @@ public:
     }
 
     ThreadPool(int nThreads) : queue(new QueueImplementation) {
-        assert(nThreads > 0);
+        aa_assert(nThreads > 0);
         for (int i = 0; i < nThreads; ++i) {
             pool.emplace_back([this]{ work(); });
         }

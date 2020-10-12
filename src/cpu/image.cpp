@@ -24,14 +24,14 @@ protected:
     }
 
     void get(int x, int y, int channel, std::uint8_t *targetArray) const final {
-        assert(channel >= 0 && channel < channels);
+        aa_assert(channel >= 0 && channel < channels);
         const auto bpc = bytesPerChannel();
         const auto offset = index(x, y) + channel * bpc;
         for (std::size_t i = 0; i < bpc; ++i) targetArray[i] = data[i + offset];
     }
 
     void set(int x, int y, int channel, const std::uint8_t *srcArray) final {
-        assert(channel >= 0 && channel < channels);
+        aa_assert(channel >= 0 && channel < channels);
         const auto bpc = bytesPerChannel();
         const auto offset = index(x, y) + channel * bpc;
         for (std::size_t i = 0; i < bpc; ++i) data[i + offset] = srcArray[i];
@@ -78,7 +78,7 @@ inline bool applyBorder1D(int &i, int size, Image::Border border) {
     case Image::Border::MIRROR:
         if (i < 0) i = -i;
         else if (i >= size) i = size - 1 - (i - (size - 1));
-        assert(i >= 0 && i < size); // multiple mirroring undefined
+        aa_assert(i >= 0 && i < size); // multiple mirroring undefined
         return true;
     case Image::Border::REPEAT:
         if (i < 0) i = 0;
@@ -90,7 +90,7 @@ inline bool applyBorder1D(int &i, int size, Image::Border border) {
         return true;
     case Image::Border::UNDEFINED:
     default:
-        assert(false);
+        aa_assert(false);
         return false;
     }
 }

@@ -17,7 +17,7 @@ std::unique_ptr<Image> Image::Factory::createLike(const Image &image) {
     { return create(w, h, n, name); }
 #define X(dtype, name) \
     template <> bool ImageTypeSpec::isType<dtype>() const { return dataType == name; } \
-    template <> void ImageTypeSpec::checkType<dtype>() const { assert(isType<dtype>()); } \
+    template <> void ImageTypeSpec::checkType<dtype>() const { aa_assert(isType<dtype>()); } \
     template <> ImageTypeSpec::DataType ImageTypeSpec::getType<dtype>() { return name; } \
     Y(dtype, name, 1) \
     Y(dtype, name, 2) \
@@ -33,7 +33,7 @@ std::size_t ImageTypeSpec::bytesPerChannel() const {
         ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(X)
         #undef X
     }
-    assert(false && "invalid data type");
+    aa_assert(false && "invalid data type");
     return 0;
 }
 
@@ -55,7 +55,7 @@ bool ImageTypeSpec::isIntegerType(DataType dtype) {
         case DataType::UFIXED32: return false;
         case DataType::SFIXED32: return false;
 
-        default: assert(false);
+        default: aa_assert(false);
     }
     return false;
 }
@@ -76,7 +76,7 @@ bool ImageTypeSpec::isSigned(DataType dtype) {
         case DataType::SFIXED16: return true;
         case DataType::UFIXED32: return false;
         case DataType::SFIXED32: return true;
-        default: assert(false);
+        default: aa_assert(false);
     }
     return false;
 }
@@ -97,13 +97,18 @@ bool ImageTypeSpec::isFixedPoint(DataType dtype) {
         case DataType::SFIXED16: return true;
         case DataType::UFIXED32: return true;
         case DataType::SFIXED32: return true;
-        default: assert(false);
+        default: aa_assert(false);
     }
     return false;
 }
 
 bool ImageTypeSpec::isFloat(DataType dtype) {
     return dtype == DataType::FLOAT32;
+}
+
+void assert_fail(const char *assertion, const char *fn, unsigned int line, const char *func) {
+  log_error("assertion %s failed in %s (%s:%u)", assertion, func, fn, line);
+  std::abort();
 }
 
 }

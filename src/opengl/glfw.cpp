@@ -42,7 +42,7 @@ struct GLFWProcessor : Processor {
 
     Future enqueue(const std::function<void()> &op) final {
         return thread->enqueue([this, op]() {
-            assert(window);
+            aa_assert(window);
             // log_debug("op in GL thread");
             // not which of these are really required. It might be slow
             // to call them after each operation
