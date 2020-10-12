@@ -138,43 +138,61 @@ class FrameBufferImplementation : public FrameBuffer {
 private:
     int width, height;
     ImageTypeSpec spec;
-    GLuint id;
-    TextureImplementation texture;
+    int id;
+    std::unique_ptr<Texture> texture;
+
+    bool isScreen() const {
+        // hacky
+        return id == 0;
+    }
 
 public:
-    FrameBufferImplementation(int w, int h, const ImageTypeSpec &spec)
-    : width(w), height(h), spec(spec), id(0), texture(w, h, spec) {
-        glGenFramebuffers(1, &id);
-        LOG_TRACE("generated frame buffer %d", id);
-        CHECK_ERROR(__FUNCTION__);
+    FrameBufferImplementation(int w, int h, const ImageTypeSpec &spec, int existingFboId = -1) :
+        width(w), height(h), spec(spec), id(existingFboId),
+        texture(existingFboId < 0 ? new TextureImplementation(w, h, spec) : nullptr)
+    {
+        if (existingFboId >= 0) {
+            log_debug("creating a reference to an existing frame buffer object %d", existingFboId);
+        } else {
+            GLuint genId;
+            glGenFramebuffers(1, &genId);
+            id = genId;
+            LOG_TRACE("generated frame buffer %d", id);
+            CHECK_ERROR(__FUNCTION__);
 
-        assert(spec.storageType == Image::StorageType::GPU_OPENGL);
+            assert(spec.storageType == Image::StorageType::GPU_OPENGL);
 
-        Binder binder(*this);
+            Binder binder(*this);
 
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture.getId(), 0);
-        CHECK_ERROR(__FUNCTION__);
-        assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture->getId(), 0);
+            CHECK_ERROR(__FUNCTION__);
+            assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
 
-        GLenum bufs[1] = { GL_COLOR_ATTACHMENT0 }; // single output at location 0
-        glDrawBuffers(1, bufs);
-        CHECK_ERROR(__FUNCTION__);
+            GLenum bufs[1] = { GL_COLOR_ATTACHMENT0 }; // single output at location 0
+            glDrawBuffers(1, bufs);
+            CHECK_ERROR(__FUNCTION__);
+        }
     }
 
     void destroy() final {
-        if (id != 0) {
-            LOG_TRACE("destroying frame buffer %d", id);
-            glDeleteFramebuffers(1, &id);
+        if (texture) {
+            if (id != 0) {
+                LOG_TRACE("destroying frame buffer %d", id);
+                GLuint uid = id;
+                glDeleteFramebuffers(1, &uid);
+            }
+            id = 0;
+            texture->destroy();
+        } else {
+            LOG_TRACE("not destroying external frame buffer %d", id);
         }
-        id = 0;
-        texture.destroy();
     }
 
     int getWidth() const final { return width; }
     int getHeight() const final { return height; }
 
     ~FrameBufferImplementation() {
-        if (id != 0) {
+        if (texture && id != 0) {
             log_warn("leaking frame buffer %d", id);
         }
     }
@@ -187,6 +205,8 @@ public:
     }
 
     void unbind() final {
+        if (isScreen()) return; // skip, already bound 0
+
         LOG_TRACE("unbound frame buffer");
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         // texture.unbind();
@@ -203,9 +223,14 @@ public:
         LOG_TRACE("reading frame buffer %d", id);
         Binder binder(*this);
 
-        // probably not changed but good to set anyway
-        glReadBuffer(GL_COLOR_ATTACHMENT0);
-        CHECK_ERROR(__FUNCTION__);
+        if (isScreen()) {
+            LOG_TRACE("reading screen");
+            glReadBuffer(GL_BACK);
+        } else {
+            // probably not changed but good to set anyway
+            glReadBuffer(GL_COLOR_ATTACHMENT0);
+            CHECK_ERROR(__FUNCTION__);
+        }
 
         // our CPU data is tightly packed and not 4-byte aligned (default)
         GLint origPackAlignment;
@@ -217,15 +242,21 @@ public:
         // Note: check this
         // https://www.khronos.org/opengl/wiki/Common_Mistakes#Slow_pixel_transfer_performance
         glReadPixels(0, 0, width, height, getReadPixelFormat(spec), getCpuType(spec), pixels);
-        assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
-        CHECK_ERROR(__FUNCTION__);
+
+        if (!isScreen()) {
+            assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+            CHECK_ERROR(__FUNCTION__);
+        }
 
         glPixelStorei(GL_PACK_ALIGNMENT, origPackAlignment);
         CHECK_ERROR(__FUNCTION__);
     }
 
     void writePixels(const uint8_t *pixels) final {
-        Binder binder(texture);
+        assert(!isScreen() && "won't write pixels directly to screen");
+        assert(texture && "won't write directly to external frame buffer");
+
+        Binder binder(*texture);
 
         // our CPU data is tightly packed and not 4-byte aligned (default)
         GLint origPackAlignment;
@@ -250,7 +281,8 @@ public:
     int getId() const { return id; }
 
     int getTextureId() const final {
-        return texture.getId();
+        assert(texture && "cannot get texture ID of external frame buffer");
+        return texture->getId();
     }
 };
 
@@ -443,11 +475,21 @@ public:
         // GlFlagSetter<GL_ALPHA_TEST, false> noAlphaTest;
 
         Binder frameBufferBinder(frameBuffer);
-
         frameBuffer.setViewport();
 
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-        CHECK_ERROR(__FUNCTION__);
+        if (frameBuffer.getId() == 0) {
+            // probably not changed, but good to set explicitly
+            GLint origDrawBuffer;
+            glGetIntegerv(GL_DRAW_BUFFER, &origDrawBuffer);
+            CHECK_ERROR(__FUNCTION__);
+            glDrawBuffer(GL_BACK);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+            glDrawBuffer(origDrawBuffer);
+            CHECK_ERROR(__FUNCTION__);
+        } else {
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+            CHECK_ERROR(__FUNCTION__);
+        }
     }
 
     int getId() const final {
@@ -599,6 +641,16 @@ std::unique_ptr<Texture> Texture::create(int w, int h, const ImageTypeSpec &spec
 
 std::unique_ptr<FrameBuffer> FrameBuffer::create(int w, int h, const ImageTypeSpec &spec) {
     return std::unique_ptr<FrameBuffer>(new FrameBufferImplementation(w, h, spec));
+}
+
+std::unique_ptr<FrameBuffer> FrameBuffer::createReference(int existingFboId, int w, int h, const ImageTypeSpec &spec) {
+    return std::unique_ptr<FrameBuffer>(new FrameBufferImplementation(w, h, spec, existingFboId));
+}
+
+std::unique_ptr<FrameBuffer> FrameBuffer::createScreenReference(int w, int h) {
+    auto spec = getScreenImageTypeSpec();
+    // note: 0 is handled as a special case (hacky-ish)
+    return createReference(0, w, h, *spec);
 }
 
 std::unique_ptr<GlslProgram> GlslProgram::create(const char *vs, const char *fs) {

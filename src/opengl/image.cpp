@@ -11,7 +11,7 @@ namespace opengl {
 namespace {
 class ExternalImage : public Image {
 private:
-    int textureId = -1;
+    int textureId;
 
 public:
     ExternalImage(int w, int h, int textureId, const ImageTypeSpec &spec)
@@ -75,14 +75,17 @@ public:
         });
     }
 
-    void addFrameBuffer(const Reference *ref, const std::function<std::unique_ptr<FrameBuffer>()> &builder) {
+    void addFrameBuffer(const Reference *ref, const std::function<std::shared_ptr<FrameBuffer>()> &builder) {
+        // easier to implement with shared_ptr in the argument, even if it
+        // "should" be unique_ptr and the Reference ctor effectively transfers
+        // the ownership here
         processor.enqueue([this, ref, builder]() {
             auto fb = builder();
             {
                 std::lock_guard<std::mutex> lock(mutex);
                 assert(!frameBuffers.count(ref));
                 LOG_TRACE("frame buffer for reference %p set to %d", (void*)ref, fb->getId());
-                frameBuffers[ref] = std::move(fb);
+                frameBuffers[ref] = fb;
             }
         });
     }
@@ -110,11 +113,13 @@ public:
         return frameBuffers.at(ref);
     }
 
-    std::unique_ptr<::accelerated::Image> create(int w, int h, int channels, ImageTypeSpec::DataType dtype) final;
-
-    std::unique_ptr<Image> wrapTexture(int textureId, int w, int h, const ImageTypeSpec &spec) {
+    std::unique_ptr<Image> wrapTexture(int textureId, int w, int h, const ImageTypeSpec &spec) final {
         return std::unique_ptr<Image>(new ExternalImage(w, h, textureId, spec));
     }
+
+    std::unique_ptr<::accelerated::Image> create(int w, int h, int channels, ImageTypeSpec::DataType dtype) final;
+    std::unique_ptr<Image> wrapFrameBuffer(int frameBufferId, int w, int h, const ImageTypeSpec &spec) final;
+    std::unique_ptr<Image> wrapScreen(int w, int h) final;
 };
 
 class FrameBufferManager::Reference : public Image {
@@ -123,11 +128,15 @@ private:
     std::function<Future(std::uint8_t*)> readAdpater;
 
 public:
-    Reference(int w, int h, const ImageTypeSpec &spec, FrameBufferManager &m) : Image(w, h, spec), manager(m) {
+    Reference(int w, int h, const ImageTypeSpec &spec, FrameBufferManager &m, std::unique_ptr<FrameBuffer> existing)
+    : Image(w, h, spec), manager(m)
+    {
         ImageTypeSpec s = spec;
+        std::shared_ptr<FrameBuffer> fb = std::move(existing);
         LOG_TRACE("created buffer reference %p", (void*)this);
-        manager.addFrameBuffer(this, [w, h, s]() {
-            return FrameBuffer::create(w, h, s);
+        manager.addFrameBuffer(this, [w, h, s, fb]() {
+            if (fb) return fb;
+            return std::shared_ptr<FrameBuffer>(FrameBuffer::create(w, h, s));
         });
     }
 
@@ -196,9 +205,21 @@ public:
 
 std::unique_ptr<::accelerated::Image> FrameBufferManager::create(int w, int h, int channels, ImageTypeSpec::DataType dtype) {
     return std::unique_ptr<::accelerated::Image>(new FrameBufferManager::Reference(w, h,
-        Image::getSpec(channels, dtype, ImageTypeSpec::StorageType::GPU_OPENGL), *this));
+        Image::getSpec(channels, dtype, ImageTypeSpec::StorageType::GPU_OPENGL), *this, {}));
 }
 
+std::unique_ptr<Image> FrameBufferManager::wrapFrameBuffer(int fboId, int w, int h, const ImageTypeSpec &spec) {
+    return std::unique_ptr<Image>(
+        new FrameBufferManager::Reference(w, h, spec, *this,
+            FrameBuffer::createReference(fboId, w, h, spec)));
+}
+
+std::unique_ptr<Image> FrameBufferManager::wrapScreen(int w, int h) {
+    auto spec = getScreenImageTypeSpec();
+    return std::unique_ptr<Image>(
+        new FrameBufferManager::Reference(w, h, *spec, *this,
+            FrameBuffer::createScreenReference(w, h)));
+}
 }
 
 ImageTypeSpec Image::getSpec(int channels, DataType dtype, StorageType stype) {

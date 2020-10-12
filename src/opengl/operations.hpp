@@ -65,5 +65,18 @@ std::unique_ptr<Factory> createFactory(Processor &processor);
  * OpenGL thread / onDraw function manually.
  */
 std::unique_ptr<Processor> createGLFWProcessor();
+
+
+/**
+ * Same as createGLFWProcessor but with a visible window of given size
+ * and title. To draw to the window, first create an opengl::Image::Factory,
+ * then obtain a screen frame buffer reference with factory->wrapScreen,
+ * create an operation that writes something to it, and finally call
+ * processor->enqueue([]() -> { glfwSwapBuffers(); });
+ *
+ * You may also want to use the optionally outputted GLFWwindow pointer
+ * to check if the user has requested to close the window etc.
+ */
+std::unique_ptr<Processor> createGLFWWindow(int w, int h, const char *title = nullptr, void **glfwWindowOutput = nullptr);
 }
 }

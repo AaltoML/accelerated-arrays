@@ -45,6 +45,7 @@ int getBindType(const ImageTypeSpec &spec);
 std::string getGlslSamplerType(const ImageTypeSpec &spec);
 std::string getGlslScalarType(const ImageTypeSpec &spec);
 std::string getGlslVecType(const ImageTypeSpec &spec);
+std::unique_ptr<ImageTypeSpec> getScreenImageTypeSpec();
 
 class Binder {
 public:
@@ -83,6 +84,8 @@ struct Destroyable {
 
 struct FrameBuffer : Destroyable, Binder::Target {
     static std::unique_ptr<FrameBuffer> create(int w, int h, const ImageTypeSpec &spec);
+    static std::unique_ptr<FrameBuffer> createReference(int existingFboId, int w, int h, const ImageTypeSpec &spec);
+    static std::unique_ptr<FrameBuffer> createScreenReference(int w, int h);
 
     virtual int getWidth() const = 0;
     virtual int getHeight() const = 0;

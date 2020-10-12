@@ -270,5 +270,14 @@ int getBindType(const ImageTypeSpec &spec) {
     return -1;
 }
 
+// assumed screen spec
+std::unique_ptr<ImageTypeSpec> getScreenImageTypeSpec() {
+    return std::unique_ptr<ImageTypeSpec>(new ImageTypeSpec {
+        4, // Note: could be 3 in some circumstances... or even something else
+        ImageTypeSpec::DataType::UFIXED8,
+        ImageTypeSpec::StorageType::GPU_OPENGL
+    });
+}
+
 }
 }

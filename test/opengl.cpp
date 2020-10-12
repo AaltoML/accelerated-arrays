@@ -4,8 +4,13 @@
 
 #include "opengl/operations.hpp"
 #include "opengl/image.hpp"
-
 #include "opengl/adapters.hpp"
+
+#ifdef TEST_OPENGL_WITH_VISIBLE_WINDOW
+#include <chrono>
+#include <thread>
+#include <GLFW/glfw3.h>
+#endif
 
 TEST_CASE( "manual OpenGL", "[accelerated-arrays-opengl]" ) {
     using namespace accelerated;
@@ -189,3 +194,33 @@ TEST_CASE( "float image", "[accelerated-arrays-opengl]" ) {
     image->read(outBuf).wait();
     REQUIRE(std::fabs(outBuf.back() - (-3.14159)) < 1e-5);
 }
+
+#ifdef TEST_OPENGL_WITH_VISIBLE_WINDOW
+TEST_CASE( "GLFW draw to window", "[accelerated-arrays-opengl]" ) {
+    using namespace accelerated;
+    GLFWwindow *wnd = nullptr;
+
+    const int width = 320, height = 200;
+    auto processor = opengl::createGLFWWindow(320, 200, "pink window", (void**)&wnd);
+    auto factory = opengl::Image::createFactory(*processor);
+    auto ops = opengl::operations::createFactory(*processor);
+
+    auto screen = factory->wrapScreen(width, height);
+    auto fill = ops->create(
+            operations::fill::Spec{}.setValue({ 1, 0, 0.5, 1 }),
+            *screen);
+
+    REQUIRE(wnd == nullptr);
+    int itr = 0;
+    do {
+        operations::callNullary(fill, *screen).wait();
+        processor->enqueue([&wnd]() {
+            REQUIRE(wnd != nullptr);
+            glfwSwapBuffers(wnd);
+        }).wait();
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        if (itr++ > 50) break;
+    } while (!glfwWindowShouldClose(wnd));
+}
+#endif
