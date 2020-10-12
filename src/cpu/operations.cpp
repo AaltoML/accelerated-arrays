@@ -17,6 +17,7 @@ using ::accelerated::operations::Function;
 using ::accelerated::operations::convert;
 
 void checkSpec(const ImageTypeSpec &spec) {
+    (void)spec;
     assert(spec.storageType == ImageTypeSpec::StorageType::CPU);
 }
 
@@ -126,6 +127,7 @@ public:
         ACCELERATED_IMAGE_FOR_EACH_TYPE(X)
         #undef X
         assert(false);
+        return {};
     }
 
     Function create(const FillSpec &spec, const ImageTypeSpec &imageSpec) final {
@@ -136,6 +138,7 @@ public:
         ACCELERATED_IMAGE_FOR_EACH_TYPE(X)
         #undef X
         assert(false);
+        return {};
     }
 
     Function create(const PixelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
@@ -146,6 +149,7 @@ public:
         ACCELERATED_IMAGE_FOR_EACH_TYPE_PAIR(X)
         #undef X
         assert(false);
+        return {};
     }
 
     Function create(const ChannelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
@@ -155,6 +159,7 @@ public:
         ACCELERATED_IMAGE_FOR_EACH_TYPE_PAIR(X)
         #undef X
         assert(false);
+        return {};
     }
 };
 }

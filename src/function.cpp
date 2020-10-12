@@ -8,14 +8,15 @@ namespace operations {
 
 Function convert(const Nullary &f) {
     return [f](Image** inputs, int nInputs, Image &output) -> Future {
+        (void)inputs; (void)nInputs;
         assert(nInputs == 0);
-        (void)inputs;
         return f(output);
     };
 }
 
 Function convert(const Unary &f) {
     return [f](Image** inputs, int nInputs, Image &output) -> Future {
+        (void)nInputs;
         assert(nInputs == 1);
         return f(**inputs, output);
     };
@@ -23,6 +24,7 @@ Function convert(const Unary &f) {
 
 Function convert(const Binary &f) {
     return [f](Image** inputs, int nInputs, Image &output) -> Future {
+        (void)nInputs;
         assert(nInputs == 2);
         return f(*inputs[0], *inputs[1], output);
     };

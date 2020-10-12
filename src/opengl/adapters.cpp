@@ -478,18 +478,21 @@ public:
         frameBuffer.setViewport();
 
         if (frameBuffer.getId() == 0) {
-            // probably not changed, but good to set explicitly
-            GLint origDrawBuffer;
-            glGetIntegerv(GL_DRAW_BUFFER, &origDrawBuffer);
-            CHECK_ERROR(__FUNCTION__);
-            glDrawBuffer(GL_BACK);
+            #ifndef ACCELERATED_ARRAYS_USE_OPENGL_ES
+                // probably not changed, but good to set explicitly
+                GLint origDrawBuffer;
+                glGetIntegerv(GL_DRAW_BUFFER, &origDrawBuffer);
+                CHECK_ERROR(__FUNCTION__);
+                glDrawBuffer(GL_BACK);
+            #endif
             glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-            glDrawBuffer(origDrawBuffer);
-            CHECK_ERROR(__FUNCTION__);
+            #ifndef ACCELERATED_ARRAYS_USE_OPENGL_ES
+                glDrawBuffer(origDrawBuffer);
+            #endif
         } else {
             glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-            CHECK_ERROR(__FUNCTION__);
         }
+        CHECK_ERROR(__FUNCTION__);
     }
 
     int getId() const final {
@@ -528,6 +531,9 @@ public:
         textureId = id;
         return *this;
     }
+
+    // avoid clang warning
+    virtual ~TextureUniformBinder() = default;
 };
 
 class GlslPipelineImplementation : public GlslPipeline {
