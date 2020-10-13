@@ -1,0 +1,17 @@
+name: Build and run unit tests
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: CMake build
+      run: |
+        mkdir target
+        cd target
+        CC=clang CXX=clang++ cmake ..
+        make -j4
+    - name: Run tests
+      run: ./test/run-tests
