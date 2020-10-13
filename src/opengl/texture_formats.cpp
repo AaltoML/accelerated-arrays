@@ -165,7 +165,7 @@ int getCpuFormat(const ImageTypeSpec &spec) {
 
 std::string getGlslSamplerType(const ImageTypeSpec &spec) {
     if (spec.storageType == ImageTypeSpec::StorageType::GPU_OPENGL_EXTERNAL) {
-        aa_assert(spec.dataType == ImageTypeSpec::DataType::UINT8);
+        aa_assert(spec.dataType == ImageTypeSpec::DataType::UFIXED8);
         return "samplerExternalOES";
     }
 
