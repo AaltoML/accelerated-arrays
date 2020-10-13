@@ -1,0 +1,23 @@
+name: Build and run unit tests
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: recursive
+    - name: Install OpenGL libraries (Mesa)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y mesa-common-dev libglfw3-dev
+    - name: CMake build
+      run: |
+        mkdir target
+        cd target
+        CC=clang CXX=clang++ cmake -DTEST_OPENGL_OPERATIONS=OFF ..
+        make -j4
+    - name: Run tests
+      run: ./target/test/run-tests
