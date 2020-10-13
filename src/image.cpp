@@ -106,9 +106,4 @@ bool ImageTypeSpec::isFloat(DataType dtype) {
     return dtype == DataType::FLOAT32;
 }
 
-void assert_fail(const char *assertion, const char *fn, unsigned int line, const char *func) {
-  log_error("assertion %s failed in %s (%s:%u)", assertion, func, fn, line);
-  std::abort();
-}
-
 }

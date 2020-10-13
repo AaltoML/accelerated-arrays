@@ -19,6 +19,7 @@ set(SRC_FILES
     src/future.cpp
     src/function.cpp
     src/image.cpp
+    src/log_and_assert.cpp
     src/queue.cpp
 )
 
