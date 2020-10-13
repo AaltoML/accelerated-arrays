@@ -20,4 +20,4 @@ jobs:
         CC=clang CXX=clang++ cmake ..
         make -j4
     - name: Run tests
-      run: ./test/run-tests
+      run: ./target/test/run-tests
