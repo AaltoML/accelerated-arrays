@@ -17,7 +17,7 @@ jobs:
       run: |
         mkdir target
         cd target
-        CC=clang CXX=clang++ cmake ..
+        CC=clang CXX=clang++ cmake -DTEST_OPENGL_OPERATIONS=OFF ..
         make -j4
     - name: Run tests
       run: ./target/test/run-tests
