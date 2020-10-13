@@ -56,18 +56,18 @@ operations::Shader<Unary>::Builder createFunction(const Image &img, int targetCh
     std::string fragmentShaderBody;
     {
         std::ostringstream oss;
-        const auto fullSwiz = "rgba";
         const auto swiz = glsl::swizzleSubset(img.channels);
         oss << "void main() {\n";
         oss << "ivec2 outCoord = ivec2(v_texCoord * vec2(u_outSize));\n";
         int ratio = targetChannels / img.channels;
         oss << "int x0 = outCoord.x * " << ratio << ";\n";
+        // target should be UFIXED8
+        oss << "outValue = " << glsl::floatVecType(targetChannels) << "(";
         for (int i = 0; i < ratio; ++i) {
-            oss << getGlslVecType(img) << " col" << i << " = texelFetch(u_texture, " << "ivec2(x0 + " << i << ", outCoord.y)" << ", 0)." << swiz << ";\n";
-            for (int j = 0; j < img.channels; ++j) {
-                oss << "outValue." << fullSwiz[i*img.channels + j] << " = col" << i << "." << fullSwiz[j] << ";\n";
-            }
+            if (i > 0) oss << ",\n";
+            oss << "texelFetch(u_texture, " << "ivec2(x0 + " << i << ", outCoord.y)" << ", 0)." << swiz;
         }
+        oss << ");\n";
         oss << "}\n";
         fragmentShaderBody = oss.str();
     }

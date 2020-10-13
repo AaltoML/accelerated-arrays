@@ -290,7 +290,12 @@ static GLuint loadShader(GLenum shaderType, const char* shaderSource) {
     const GLuint shader = glCreateShader(shaderType);
     aa_assert(shader);
 
+    //#define ACCELERATED_ARRAYS_DEBUG_PRINT_ALL_SHADERS
+    #ifdef ACCELERATED_ARRAYS_DEBUG_PRINT_ALL_SHADERS
+    log_debug("compiling shader:\n %s\n", shaderSource);
+    #else
     LOG_TRACE("compiling shader:\n %s\n", shaderSource);
+    #endif
 
     glShaderSource(shader, 1, &shaderSource, nullptr);
     glCompileShader(shader);
@@ -387,7 +392,7 @@ private:
         std::ostringstream oss;
         oss << "#version 300 es\n";
         oss << "precision highp float;\n";
-        oss << "attribute vec4 a_vertexData;\n";
+        oss << "in vec4 a_vertexData;\n";
         if (withTexCoord) {
             oss << "out vec2 " << varyingTexCoordName << ";\n";
         }
@@ -566,7 +571,7 @@ private:
         std::ostringstream oss;
         oss << "#version 300 es\n";
         if (hasExternal(inputs)) {
-            oss << "#extension GL_OES_EGL_image_external : require\n";
+            oss << "#extension GL_OES_EGL_image_external_essl3 : require\n";
         }
         oss << "precision highp float;\n";
         oss << "layout(location = 0) out " << getGlslVecType(output) << " outValue;\n";
