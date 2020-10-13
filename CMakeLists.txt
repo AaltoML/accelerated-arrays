@@ -7,7 +7,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wextra -Wall -pedantic")
 find_package(Threads REQUIRED)
 
 if (NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE RelWithDebSymbols)
+  set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
 option(WITH_OPENGL "Compile with OpenGL support" ON)
