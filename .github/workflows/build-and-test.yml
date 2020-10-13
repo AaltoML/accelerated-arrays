@@ -10,7 +10,7 @@ jobs:
     - name: Install OpenGL libraries (Mesa)
       run: |
         sudo apt-get update
-        sudo apt-get install -y mesa-common-dev libglfw-dev
+        sudo apt-get install -y mesa-common-dev libglfw3-dev
     - name: CMake build
       run: |
         mkdir target
