@@ -10,7 +10,7 @@ namespace {
 typedef ::accelerated::Image BaseImage;
 typedef ::accelerated::operations::fixedConvolution2D::Spec FixedConvolution2DSpec;
 typedef ::accelerated::operations::fill::Spec FillSpec;
-typedef ::accelerated::operations::pixelwiseAffine::Spec PixelwiseAffineSpec;
+typedef ::accelerated::operations::pixelwiseAffineCombination::Spec PixelwiseAffineCombinationSpec;
 typedef ::accelerated::operations::channelwiseAffine::Spec ChannelwiseAffineSpec;
 using ::accelerated::operations::Function;
 
@@ -41,18 +41,21 @@ Nullary fill(const FillSpec &spec, const ImageTypeSpec &outSpec) {
     };
 }
 
-Unary pixelwiseAffine(const PixelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
-    return [spec, inSpec, outSpec](Image &input, Image &output) {
-        aa_assert(int(spec.linear.size()) == output.channels);
-        aa_assert(input == inSpec);
+NAry pixelwiseAffineCombination(const PixelwiseAffineCombinationSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
+    return [spec, inSpec, outSpec](Image **inputs, int nInputs, Image &output) {
+        aa_assert(int(spec.linear.size()) == nInputs);
         aa_assert(output == outSpec);
-        forEachPixelAndChannel(output, [&spec, &input](Image &output, int x, int y, int c) {
+        for (int i = 0; i < nInputs; ++i) aa_assert(*inputs[i] == inSpec);
+        forEachPixelAndChannel(output, [&spec, inputs, nInputs](Image &output, int x, int y, int c) {
             double v = spec.bias.at(c);
-            const auto &matRow = spec.linear.at(c);
-            aa_assert(int(matRow.size()) == input.channels);
-            for (int inChan = 0; inChan < input.channels; ++inChan) {
-                const double inValue = input.getFloat(x, y, inChan);
-                v += matRow.at(inChan) * inValue;
+            for (int i = 0; i < nInputs; ++i) {
+                auto &input = *inputs[i];
+                const auto &matRow = spec.linear.at(i).at(c);
+                aa_assert(int(matRow.size()) == input.channels);
+                for (int inChan = 0; inChan < input.channels; ++inChan) {
+                    const double inValue = input.getFloat(x, y, inChan);
+                    v += matRow.at(inChan) * inValue;
+                }
             }
             // std::cout << x << " " << y << " " << c << " = " << v << std::endl;
             output.setFloat(x, y, c, v);
@@ -122,10 +125,10 @@ public:
         return wrap<Nullary>(impl::fill(spec, imageSpec));
     }
 
-    Function create(const PixelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
+    Function create(const PixelwiseAffineCombinationSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
         checkSpec(inSpec);
         checkSpec(outSpec);
-        return wrap<Unary>(impl::pixelwiseAffine(spec, inSpec, outSpec));
+        return wrapNAry(impl::pixelwiseAffineCombination(spec, inSpec, outSpec));
     }
 
     Function create(const ChannelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {

@@ -13,7 +13,7 @@ namespace operations {
 namespace {
 typedef ::accelerated::operations::fill::Spec FillSpec;
 typedef ::accelerated::operations::fixedConvolution2D::Spec FixedConvolution2DSpec;
-typedef ::accelerated::operations::pixelwiseAffine::Spec PixelwiseAffineSpec;
+typedef ::accelerated::operations::pixelwiseAffineCombination::Spec PixelwiseAffineCombinationSpec;
 typedef ::accelerated::operations::channelwiseAffine::Spec ChannelwiseAffineSpec;
 using ::accelerated::operations::Function;
 
@@ -53,25 +53,30 @@ Shader<Nullary>::Builder fill(const FillSpec &spec, const ImageTypeSpec &imageSp
     };
 }
 
-Shader<Unary>::Builder pixelwiseAffine(const PixelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
+Shader<NAry>::Builder pixelwiseAffineCombination(const PixelwiseAffineCombinationSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
+
+    const int nInputs = spec.linear.size();
     std::string fragmentShaderBody;
     {
         std::ostringstream oss;
 
         const auto swiz = glsl::swizzleSubset(outSpec.channels);
 
-        if (!spec.linear.empty()) {
-            aa_assert(outSpec.channels == int(spec.linear.size()));
-            aa_assert(inSpec.channels == int(spec.linear.at(0).size()));
+        aa_assert(!spec.linear.empty());
+        for (int i = 0; i < nInputs; ++i) {
+            const auto &mat = spec.linear.at(i);
+
+            aa_assert(outSpec.channels == int(mat.size()));
+            aa_assert(inSpec.channels == int(mat.at(0).size()));
             // TODO: could use smaller mat or dot product for different
             // special cases for perhaps improved performance
-            oss << "const mat4 m = mat4(";
+            oss << "const mat4 m" << i << " = mat4(";
             for (int col = 0; col < 4; ++col) {
                 oss << "vec4(";
                 for (int row = 0; row < 4; ++row) {
                     if (row > 0) oss << ", ";
-                    if (row < int(spec.linear.size()) && col < int(spec.linear.at(row).size()))
-                        oss << spec.linear.at(row).at(col);
+                    if (row < int(mat.size()) && col < int(mat.at(row).size()))
+                        oss << mat.at(row).at(col);
                     else
                         oss << "0";
                 }
@@ -83,33 +88,54 @@ Shader<Unary>::Builder pixelwiseAffine(const PixelwiseAffineSpec &spec, const Im
         }
 
         oss << "void main() {\n";
-        oss << "outValue = " << getGlslVecType(outSpec) << "((";
-        if (!spec.linear.empty()) oss << "m * ";
-        oss << "vec4(texelFetch(u_texture, ivec2(v_texCoord * vec2(u_outSize)), 0))\n";
-        oss << ")." << swiz;
-        if (!spec.bias.empty()) {
+        const std::string vtype = glsl::floatVecType(outSpec.channels);
+        oss << vtype << " v = ";
+        if (spec.bias.empty()) {
+            oss << vtype << "(0)";
+        } else {
             aa_assert(outSpec.channels == int(spec.bias.size()));
-            oss << " + " << glsl::wrapToFloatVec(spec.bias);
+            oss << glsl::wrapToFloatVec(spec.bias);
         }
-        oss << ");\n";
+        oss << ";\n";
+        for (int i = 0; i < nInputs; ++i) {
+            const auto &mat = spec.linear.at(i);
+            oss << "vec4 texValue" << i << " = vec4(texelFetch(u_texture";
+            if (nInputs > 1) oss << (i + 1);
+            oss << ", ivec2(v_texCoord * vec2(u_outSize)), 0));\n";
+            oss << "v += " << vtype << "(";
+            if (!mat.empty()) oss << "m" << i << " * ";
+            oss << "texValue" << i <<  ")." << swiz << ";\n";
+        }
+        oss << "outValue = " << getGlslVecType(outSpec) << "(v);\n";
         oss << "}\n";
-
         fragmentShaderBody = oss.str();
     }
 
-    return [fragmentShaderBody, inSpec, outSpec]() {
-        std::unique_ptr< Shader<Unary> > shader(new Shader<Unary>);
-        shader->resources = GlslPipeline::create(fragmentShaderBody.c_str(), { inSpec }, outSpec);
+    return [fragmentShaderBody, inSpec, outSpec, nInputs]() {
+        std::unique_ptr< Shader<NAry> > shader(new Shader<NAry>);
+        std::vector<ImageTypeSpec> inSpecs;
+        for (int i = 0; i < nInputs; ++i) inSpecs.emplace_back(inSpec);
+
+        shader->resources = GlslPipeline::create(fragmentShaderBody.c_str(), inSpecs, outSpec);
         GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
 
-        shader->function = [&pipeline, inSpec, outSpec](Image &input, Image &output) {
-            // if not using wrapChecked, better check here than experience
-            // random crashes if accidentally using a wrong image type
-            aa_assert(input == inSpec);
-            aa_assert(output == outSpec);
+        auto textureBinders = std::shared_ptr< std::vector<Binder::Target*> >(new std::vector<Binder::Target*>);
+        textureBinders->resize(nInputs, nullptr);
+
+        shader->function = [&pipeline, inSpec, outSpec, nInputs, textureBinders](Image **inputs, int n, Image &output) {
+            aa_assert(n == nInputs);
+
             Binder binder(pipeline);
-            Binder inputBinder(pipeline.bindTexture(0, input.getTextureId()));
+
+            aa_assert(output == outSpec);
+            for (int i = 0; i < nInputs; ++i) {
+                auto &input = *inputs[i];
+                aa_assert(input == inSpec);
+                textureBinders->at(i) = &pipeline.bindTexture(i, input.getTextureId());
+                textureBinders->at(i)->bind();
+            }
             pipeline.call(output.getFrameBuffer());
+            for (auto *b : *textureBinders) b->unbind();
         };
 
         return shader;
@@ -284,10 +310,10 @@ public:
         return wrap<Nullary>(impl::fill(spec, imageSpec));
     }
 
-    Function create(const PixelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
+    Function create(const PixelwiseAffineCombinationSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
         checkSpec(inSpec);
         checkSpec(outSpec);
-        return wrap<Unary>(impl::pixelwiseAffine(spec, inSpec, outSpec));
+        return wrapNAry(impl::pixelwiseAffineCombination(spec, inSpec, outSpec));
     }
 
     Function create(const ChannelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {

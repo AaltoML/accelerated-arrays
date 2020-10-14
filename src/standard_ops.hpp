@@ -127,6 +127,40 @@ namespace pixelwiseAffine {
 }
 
 /**
+ * Combine multiple images with pixelwise affine transforms:
+ * out = A1 * x1 + A2 * x2 + ... + An * xn + b, where A is a matrix of
+ * suitable sizs and b is a bias vector. All input images must be of the
+ * same type
+ */
+namespace pixelwiseAffineCombination {
+    struct Spec : Builder {
+        std::vector< std::vector< std::vector<double> > > linear;
+        // empty means no bias
+        std::vector< double > bias;
+
+        Spec setBias(const std::vector<double> &b) {
+            bias = b;
+            return *this;
+        }
+
+        Spec scaleLinearValues(double scale) {
+            for (auto &m : linear)
+                for (auto &row : m)
+                    for (auto &el : row) el *= scale;
+            return *this;
+        }
+
+        Spec addLinearPart(const std::vector<std::vector<double>> &matrix) {
+            linear.push_back(matrix);
+            return *this;
+        }
+
+        Function build(const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec);
+        Function build(const ImageTypeSpec &spec);
+    };
+}
+
+/**
  * Channel-wise affine transform y = a*x + b.
  * With the default spec, a = 1, b = 0, this is a simple copy / conversion
  * operation.
@@ -170,15 +204,23 @@ struct StandardFactory : Builder {
       return setFactory(pixelwiseAffine::Spec{}.setLinear(matrix));
     }
 
+    pixelwiseAffineCombination::Spec affineCombination() {
+      return setFactory(pixelwiseAffineCombination::Spec{});
+    }
+
     fixedConvolution2D::Spec fixedConvolution2D(const std::vector< std::vector<double> > &kernel) {
       return setFactory(fixedConvolution2D::Spec{}.setKernel(kernel));
     }
 
+    // uses combination
+    Function create(const pixelwiseAffine::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec);
+
     // actual implementation
     virtual Function create(const fill::Spec &spec, const ImageTypeSpec &imageSpec) = 0;
     virtual Function create(const fixedConvolution2D::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) = 0;
-    virtual Function create(const pixelwiseAffine::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) = 0;
+    virtual Function create(const pixelwiseAffineCombination::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) = 0;
     virtual Function create(const channelwiseAffine::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) = 0;
+
 
 private:
     template <class T> inline T &&setFactory(T &&t) { t.factory = this; return std::move(t); }
