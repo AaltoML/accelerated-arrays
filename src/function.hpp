@@ -20,11 +20,11 @@ Function convert(const Nullary &f);
 Function convert(const Unary &f);
 Function convert(const Binary &f);
 
-Future callNullary(Function &f, Image &output);
-Future callUnary(Function &f, Image &input, Image &output);
-Future callBinary(Function &f, Image &a, Image &b, Image &output);
+Future callNullary(const Function &f, Image &output);
+Future callUnary(const Function &f, Image &input, Image &output);
+Future callBinary(const Function &f, Image &a, Image &b, Image &output);
 
-template <std::size_t N> Future call(Function &f, std::array<Image*, N> &inputs, Image &output) {
+template <std::size_t N> Future call(const Function &f, std::array<Image*, N> &inputs, Image &output) {
     return f(reinterpret_cast<Image**>(&inputs), N, output);
 }
 

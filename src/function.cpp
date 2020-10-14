@@ -30,17 +30,17 @@ Function convert(const Binary &f) {
     };
 }
 
-Future callNullary(Function &f, Image &output) {
+Future callNullary(const Function &f, Image &output) {
     std::array<Image*, 0> arr = {};
     return call(f, arr, output);
 }
 
-Future callUnary(Function &f, Image &input, Image &output) {
+Future callUnary(const Function &f, Image &input, Image &output) {
     std::array<Image*, 1> arr = {{ &input }};
     return call(f, arr, output);
 }
 
-Future callBinary(Function &f, Image &a, Image &b, Image &output) {
+Future callBinary(const Function &f, Image &a, Image &b, Image &output) {
     std::array<Image*, 2> arr = {{ &a, &b }};
     return call(f, arr, output);
 }
