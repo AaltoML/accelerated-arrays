@@ -22,8 +22,38 @@ void checkSpec(const ImageTypeSpec &spec) {
     aa_assert(Image::isCompatible(spec.storageType));
 }
 
+Shader<NAry>::Builder defaultNAryBuilder(std::string fragmentShaderBody, const std::vector<ImageTypeSpec> &inSpecs, const ImageTypeSpec &outSpec) {
+    return [fragmentShaderBody, inSpecs, outSpec]() {
+        std::unique_ptr< Shader<NAry> > shader(new Shader<NAry>);
+
+        shader->resources = GlslPipeline::create(fragmentShaderBody.c_str(), inSpecs, outSpec);
+        GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
+
+        auto textureBinders = std::shared_ptr< std::vector<Binder::Target*> >(new std::vector<Binder::Target*>);
+        textureBinders->resize(inSpecs.size(), nullptr);
+
+        shader->function = [&pipeline, inSpecs, outSpec, textureBinders](Image **inputs, int n, Image &output) {
+            aa_assert(n == int(inSpecs.size()));
+
+            Binder binder(pipeline);
+
+            aa_assert(output == outSpec);
+            for (std::size_t i = 0; i < inSpecs.size(); ++i) {
+                auto &input = *inputs[i];
+                aa_assert(input == inSpecs.at(i));
+                textureBinders->at(i) = &pipeline.bindTexture(i, input.getTextureId());
+                textureBinders->at(i)->bind();
+            }
+            pipeline.call(output.getFrameBuffer());
+            for (auto *b : *textureBinders) b->unbind();
+        };
+
+        return shader;
+    };
+}
+
 namespace impl {
-Shader<Nullary>::Builder fill(const FillSpec &spec, const ImageTypeSpec &imageSpec) {
+Shader<NAry>::Builder fill(const FillSpec &spec, const ImageTypeSpec &imageSpec) {
     aa_assert(!spec.value.empty());
 
     // GLSL shader source is built in syncrhonously on the calling thread
@@ -38,20 +68,7 @@ Shader<Nullary>::Builder fill(const FillSpec &spec, const ImageTypeSpec &imageSp
         fragmentShaderBody = oss.str();
     }
 
-    return [fragmentShaderBody, imageSpec]() {
-        // GLSL compilation happens in the GL thread
-        std::unique_ptr< Shader<Nullary> > shader(new Shader<Nullary>);
-        shader->resources = GlslPipeline::create(fragmentShaderBody.c_str(), {}, imageSpec);
-        GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
-
-        shader->function = [&pipeline](Image &output) {
-            // GLSL shader invocation also happens in the GL thread
-            Binder binder(pipeline);
-            pipeline.call(output.getFrameBuffer());
-        };
-
-        return shader;
-    };
+    return defaultNAryBuilder(fragmentShaderBody, {}, imageSpec);
 }
 
 Shader<Unary>::Builder rescale(const RescaleSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
@@ -71,14 +88,18 @@ Shader<Unary>::Builder rescale(const RescaleSpec &spec, const ImageTypeSpec &inS
         fragmentShaderBody = oss.str();
     }
 
-    return [fragmentShaderBody, inSpec, outSpec]() {
+    return [fragmentShaderBody, inSpec, outSpec, spec]() {
         std::unique_ptr< Shader<Unary> > shader(new Shader<Unary>);
         shader->resources = GlslPipeline::create(fragmentShaderBody.c_str(), { inSpec }, outSpec);
         GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
 
-        shader->function = [&pipeline, inSpec, outSpec](Image &input, Image &output) {
+        shader->function = [&pipeline, inSpec, outSpec, spec](Image &input, Image &output) {
             aa_assert(input == inSpec);
             aa_assert(output == outSpec);
+
+            input.setBorder(spec.border);
+            input.setInterpolation(spec.interpolation);
+
             Binder binder(pipeline);
             Binder inputBinder(pipeline.bindTexture(0, input.getTextureId()));
             pipeline.call(output.getFrameBuffer());
@@ -146,38 +167,12 @@ Shader<NAry>::Builder pixelwiseAffineCombination(const PixelwiseAffineCombinatio
         fragmentShaderBody = oss.str();
     }
 
-    return [fragmentShaderBody, inSpec, outSpec, nInputs]() {
-        std::unique_ptr< Shader<NAry> > shader(new Shader<NAry>);
-        std::vector<ImageTypeSpec> inSpecs;
-        for (int i = 0; i < nInputs; ++i) inSpecs.emplace_back(inSpec);
-
-        shader->resources = GlslPipeline::create(fragmentShaderBody.c_str(), inSpecs, outSpec);
-        GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
-
-        auto textureBinders = std::shared_ptr< std::vector<Binder::Target*> >(new std::vector<Binder::Target*>);
-        textureBinders->resize(nInputs, nullptr);
-
-        shader->function = [&pipeline, inSpec, outSpec, nInputs, textureBinders](Image **inputs, int n, Image &output) {
-            aa_assert(n == nInputs);
-
-            Binder binder(pipeline);
-
-            aa_assert(output == outSpec);
-            for (int i = 0; i < nInputs; ++i) {
-                auto &input = *inputs[i];
-                aa_assert(input == inSpec);
-                textureBinders->at(i) = &pipeline.bindTexture(i, input.getTextureId());
-                textureBinders->at(i)->bind();
-            }
-            pipeline.call(output.getFrameBuffer());
-            for (auto *b : *textureBinders) b->unbind();
-        };
-
-        return shader;
-    };
+    std::vector<ImageTypeSpec> inSpecs;
+    for (int i = 0; i < nInputs; ++i) inSpecs.emplace_back(inSpec);
+    return defaultNAryBuilder(fragmentShaderBody, inSpecs, outSpec);
 }
 
-Shader<Unary>::Builder channelwiseAffine(const ChannelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
+Shader<NAry>::Builder channelwiseAffine(const ChannelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
     std::string fragmentShaderBody;
     {
         std::ostringstream oss;
@@ -194,21 +189,7 @@ Shader<Unary>::Builder channelwiseAffine(const ChannelwiseAffineSpec &spec, cons
         fragmentShaderBody = oss.str();
     }
 
-    return [fragmentShaderBody, inSpec, outSpec]() {
-        std::unique_ptr< Shader<Unary> > shader(new Shader<Unary>);
-        shader->resources = GlslPipeline::create(fragmentShaderBody.c_str(), { inSpec }, outSpec);
-        GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
-
-        shader->function = [&pipeline, inSpec, outSpec](Image &input, Image &output) {
-            aa_assert(input == inSpec);
-            aa_assert(output == outSpec);
-            Binder binder(pipeline);
-            Binder inputBinder(pipeline.bindTexture(0, input.getTextureId()));
-            pipeline.call(output.getFrameBuffer());
-        };
-
-        return shader;
-    };
+    return defaultNAryBuilder(fragmentShaderBody, { inSpec }, outSpec);
 }
 
 Shader<Unary>::Builder fixedConvolution2D(const FixedConvolution2DSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
@@ -326,6 +307,14 @@ private:
 public:
     GpuFactory(Processor &processor) : processor(processor) {}
 
+
+    Function wrapShader(
+        const std::string &fragmentShaderBody,
+        const std::vector<ImageTypeSpec> &inputs,
+        const ImageTypeSpec &output) final {
+        return wrapNAry(defaultNAryBuilder(fragmentShaderBody, inputs, output));
+    };
+
     Function wrapNAry(const Shader<NAry>::Builder &builder) final {
         std::shared_ptr<ShaderWrapper> wrapper(new ShaderWrapper(processor));
         processor.enqueue([builder, wrapper]() { wrapper->initialize(builder()); });
@@ -342,7 +331,7 @@ public:
 
     Function create(const FillSpec &spec, const ImageTypeSpec &imageSpec) final {
         checkSpec(imageSpec);
-        return wrap<Nullary>(impl::fill(spec, imageSpec));
+        return wrapNAry(impl::fill(spec, imageSpec));
     }
 
     Function create(const RescaleSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
@@ -360,7 +349,7 @@ public:
     Function create(const ChannelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
         checkSpec(inSpec);
         checkSpec(outSpec);
-        return wrap<Unary>(impl::channelwiseAffine(spec, inSpec, outSpec));
+        return wrapNAry(impl::channelwiseAffine(spec, inSpec, outSpec));
     }
 };
 }

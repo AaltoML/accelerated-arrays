@@ -38,6 +38,11 @@ public:
         return wrapNAry(convertToNAry<T>(builder));
     }
 
+    virtual ::accelerated::operations::Function wrapShader(
+        const std::string &fragmentShaderBody,
+        const std::vector<ImageTypeSpec> &inputs,
+        const ImageTypeSpec &output) = 0;
+
 private:
     template <class T> static Shader<NAry>::Builder convertToNAry(const typename Shader<T>::Builder &otherAryBuilder) {
         return [otherAryBuilder]() {
