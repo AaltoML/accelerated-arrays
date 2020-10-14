@@ -78,16 +78,6 @@ wrap(const std::function<void(T **inputs, int nInputs, T &output)> &syncFunc, Pr
     };
 }
 
-template <class T, class Spec>
-::accelerated::operations::Function
-wrapChecked(const std::function<void(T **inputs, int nInputs, T &output)> &syncFunc, Processor &p, const Spec &spec) {
-    return [syncFunc, &p, spec](Image **inputs, int nInputs, Image &output) -> Future {
-        aa_assert(output == spec);
-        for (int i = 0; i < nInputs; ++i) aa_assert(*inputs[i] == spec);
-        return wrapBody(syncFunc, inputs, nInputs, output, p);
-    };
-}
-
 template <class T>
 std::function<void(T **inputs, int nInputs, T &output)>
 convert(const std::function<void(T &output)> &syncFunc) {

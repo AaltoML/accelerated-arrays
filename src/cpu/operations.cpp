@@ -13,20 +13,13 @@ typedef ::accelerated::operations::fill::Spec FillSpec;
 typedef ::accelerated::operations::pixelwiseAffine::Spec PixelwiseAffineSpec;
 typedef ::accelerated::operations::channelwiseAffine::Spec ChannelwiseAffineSpec;
 using ::accelerated::operations::Function;
-using ::accelerated::operations::convert;
 
 void checkSpec(const ImageTypeSpec &spec) {
     (void)spec;
     aa_assert(spec.storageType == ImageTypeSpec::StorageType::CPU);
 }
 
-/*void forEachPixel(Image &img, const std::function<void(Image &img, int x, int y)> &f) {
-    for (int y = 0; y < img.height; ++y) {
-        for (int x = 0; x < img.width; ++x) {
-            f(img, x, y);
-        }
-    }
-}*/
+namespace impl { // to avoid name clashes with StandardFactory
 
 void forEachPixelAndChannel(Image &img, const std::function<void(Image &img, int x, int y, int c)> &f) {
     for (int y = 0; y < img.height; ++y) {
@@ -38,8 +31,10 @@ void forEachPixelAndChannel(Image &img, const std::function<void(Image &img, int
     }
 }
 
-Nullary fill(const FillSpec &spec) {
-    return [spec](Image &output) {
+Nullary fill(const FillSpec &spec, const ImageTypeSpec &outSpec) {
+    aa_assert(int(spec.value.size()) == outSpec.channels);
+    return [spec, outSpec](Image &output) {
+        aa_assert(output == outSpec);
         forEachPixelAndChannel(output, [&spec](Image &output, int x, int y, int c) {
             output.setFloat(x, y, c, spec.value.at(c));
         });
@@ -77,9 +72,11 @@ Unary channelwiseAffine(const ChannelwiseAffineSpec &spec, const ImageTypeSpec &
     };
 }
 
-Unary fixedConvolution2D(const FixedConvolution2DSpec &spec) {
+Unary fixedConvolution2D(const FixedConvolution2DSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
     aa_assert(!spec.kernel.empty());
-    return [spec](Image &input, Image &output) {
+    return [spec, inSpec, outSpec](Image &input, Image &output) {
+        aa_assert(input == inSpec);
+        aa_assert(output == outSpec);
         const int kernelXOffset = spec.getKernelXOffset();
         const int kernelYOffset = spec.getKernelYOffset();
         // std::cout << spec.kernel.size() << " " << spec.kernel.at(0).size() << std::endl;
@@ -101,20 +98,11 @@ Unary fixedConvolution2D(const FixedConvolution2DSpec &spec) {
     };
 }
 
+}
+
 class CpuFactory : public Factory {
 private:
     Processor &processor;
-
-    Function wrapNAryChecked(const NAry &f, const ImageTypeSpec &spec) {
-        checkSpec(spec);
-        return ::accelerated::operations::sync::wrapChecked(f, processor, spec);
-    }
-
-    template <class T>
-    Function wrapChecked(const T &f, const ImageTypeSpec &spec) {
-        checkSpec(spec);
-        return wrapNAryChecked(::accelerated::operations::sync::convert(f), spec);
-    }
 
 public:
     CpuFactory(Processor &processor) : processor(processor) {}
@@ -123,21 +111,27 @@ public:
         return ::accelerated::operations::sync::wrap(f, processor);
     }
 
-    Function create(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec) final {
-        return wrapChecked(fixedConvolution2D(spec), imageSpec);
+    Function create(const FixedConvolution2DSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
+        checkSpec(inSpec);
+        checkSpec(outSpec);
+        return wrap<Unary>(impl::fixedConvolution2D(spec, inSpec, outSpec));
     }
 
     Function create(const FillSpec &spec, const ImageTypeSpec &imageSpec) final {
-        aa_assert(int(spec.value.size()) == imageSpec.channels);
-        return wrapChecked(fill(spec), imageSpec);
+        checkSpec(imageSpec);
+        return wrap<Nullary>(impl::fill(spec, imageSpec));
     }
 
     Function create(const PixelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
-        return wrap<Unary>(pixelwiseAffine(spec, inSpec, outSpec));
+        checkSpec(inSpec);
+        checkSpec(outSpec);
+        return wrap<Unary>(impl::pixelwiseAffine(spec, inSpec, outSpec));
     }
 
     Function create(const ChannelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
-        return wrap<Unary>(channelwiseAffine(spec, inSpec, outSpec));
+        checkSpec(inSpec);
+        checkSpec(outSpec);
+        return wrap<Unary>(impl::channelwiseAffine(spec, inSpec, outSpec));
     }
 };
 }

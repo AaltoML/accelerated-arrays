@@ -33,14 +33,9 @@ public:
      * thread.
      */
     virtual ::accelerated::operations::Function wrapNAry(const Shader<NAry>::Builder &builder) = 0;
-    virtual ::accelerated::operations::Function wrapNAryChecked(const Shader<NAry>::Builder &builder, const ImageTypeSpec &spec) = 0;
 
     template <class T> ::accelerated::operations::Function wrap(const typename Shader<T>::Builder &builder) {
         return wrapNAry(convertToNAry<T>(builder));
-    }
-
-    template <class T> ::accelerated::operations::Function wrapChecked(const typename Shader<T>::Builder &builder, const ImageTypeSpec &spec) {
-        return wrapNAryChecked(convertToNAry<T>(builder), spec);
     }
 
 private:

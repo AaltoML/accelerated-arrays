@@ -21,6 +21,7 @@ void checkSpec(const ImageTypeSpec &spec) {
     aa_assert(Image::isCompatible(spec.storageType));
 }
 
+namespace impl {
 Shader<Nullary>::Builder fill(const FillSpec &spec, const ImageTypeSpec &imageSpec) {
     aa_assert(!spec.value.empty());
 
@@ -149,7 +150,7 @@ Shader<Unary>::Builder channelwiseAffine(const ChannelwiseAffineSpec &spec, cons
     };
 }
 
-Shader<Unary>::Builder fixedConvolution2D(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec) {
+Shader<Unary>::Builder fixedConvolution2D(const FixedConvolution2DSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
     aa_assert(!spec.kernel.empty());
 
     log_warn("TODO: convolution border property is not handled yet");
@@ -174,7 +175,7 @@ Shader<Unary>::Builder fixedConvolution2D(const FixedConvolution2DSpec &spec, co
         }
         oss << "\n);\n";
 
-        const auto vtype = glsl::floatVecType(imageSpec.channels);
+        const auto vtype = glsl::floatVecType(outSpec.channels);
 
         // NOTE: this is a recurring problem in many kernels, could make a
         // suitable helper
@@ -202,15 +203,15 @@ Shader<Unary>::Builder fixedConvolution2D(const FixedConvolution2DSpec &spec, co
         oss << "    v += k * " << vtype << "(texture(u_texture, coord));\n";
         oss << "}\n";
         oss << "}\n";
-        oss << "outValue = " << getGlslVecType(imageSpec) << "(v);\n";
+        oss << "outValue = " << getGlslVecType(outSpec) << "(v);\n";
         oss << "}\n";
 
         fragmentShaderBody = oss.str();
     }
 
-    return [fragmentShaderBody, imageSpec]() {
+    return [fragmentShaderBody, inSpec, outSpec]() {
         std::unique_ptr< Shader<Unary> > shader(new Shader<Unary>);
-        shader->resources = GlslPipeline::create(fragmentShaderBody.c_str(), { imageSpec }, imageSpec);
+        shader->resources = GlslPipeline::create(fragmentShaderBody.c_str(), { inSpec }, outSpec);
         GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
 
         shader->function = [&pipeline](Image &input, Image &output) {
@@ -221,6 +222,7 @@ Shader<Unary>::Builder fixedConvolution2D(const FixedConvolution2DSpec &spec, co
 
         return shader;
     };
+}
 }
 
 class GpuFactory : public Factory {
@@ -270,29 +272,27 @@ public:
         }, processor);
     }
 
-    Function wrapNAryChecked(const Shader<NAry>::Builder &builder, const ImageTypeSpec &spec) final {
-        checkSpec(spec);
-        std::shared_ptr<ShaderWrapper> wrapper(new ShaderWrapper(processor));
-        processor.enqueue([builder, wrapper]() { wrapper->initialize(builder()); });
-        return ::accelerated::operations::sync::wrapChecked<Image, ImageTypeSpec>([wrapper](Image **inputs, int nInputs, Image &output) {
-            wrapper->get()(inputs, nInputs, output);
-        }, processor, spec);
-    }
-
-    Function create(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec) final {
-        return wrapChecked<Unary>(fixedConvolution2D(spec, imageSpec), imageSpec);
+    Function create(const FixedConvolution2DSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
+        checkSpec(inSpec);
+        checkSpec(outSpec);
+        return wrap<Unary>(impl::fixedConvolution2D(spec, inSpec, outSpec));
     }
 
     Function create(const FillSpec &spec, const ImageTypeSpec &imageSpec) final {
-        return wrapChecked<Nullary>(fill(spec, imageSpec), imageSpec);
+        checkSpec(imageSpec);
+        return wrap<Nullary>(impl::fill(spec, imageSpec));
     }
 
     Function create(const PixelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
-        return wrap<Unary>(pixelwiseAffine(spec, inSpec, outSpec));
+        checkSpec(inSpec);
+        checkSpec(outSpec);
+        return wrap<Unary>(impl::pixelwiseAffine(spec, inSpec, outSpec));
     }
 
     Function create(const ChannelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
-        return wrap<Unary>(channelwiseAffine(spec, inSpec, outSpec));
+        checkSpec(inSpec);
+        checkSpec(outSpec);
+        return wrap<Unary>(impl::channelwiseAffine(spec, inSpec, outSpec));
     }
 };
 }

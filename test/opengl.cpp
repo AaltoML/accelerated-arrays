@@ -81,9 +81,7 @@ TEST_CASE( "fixed-point image", "[accelerated-arrays-opengl]" ) {
     double s = 1.0 / FixedPoint<IntType>::max();
 
     auto ops = opengl::operations::createFactory(*processor);
-    auto fill = ops->create(
-            operations::fill::Spec{}.setValue({ 203 * s, 204 * s }),
-            *image);
+    auto fill = ops->fill({ 203 * s, 204 * s }).build(*image);
 
     operations::callNullary(fill, *image).wait();
     image->readRawFixedPoint(outBuf).wait();
@@ -110,9 +108,7 @@ TEST_CASE( "signed fixed-point image", "[accelerated-arrays-opengl]" ) {
     double s = 1.0 / FixedPoint<IntType>::max();
 
     auto ops = opengl::operations::createFactory(*processor);
-    auto fill = ops->create(
-            operations::fill::Spec{}.setValue({ 3 * s, 4 * s, 5 * s, -6 * s }),
-            *image);
+    auto fill = ops->fill({ 3 * s, 4 * s, 5 * s, -6 * s }).build(*image);
 
     operations::callNullary(fill, *image).wait();
     image->readRawFixedPoint(outBuf).wait();
@@ -137,9 +133,7 @@ TEST_CASE( "16-bit integer image", "[accelerated-arrays-opengl]" ) {
     REQUIRE(int(outBuf[0]) == -111);
 
     auto ops = opengl::operations::createFactory(*processor);
-    auto fill = ops->create(
-            operations::fill::Spec{}.setValue({ -204 }),
-            *image);
+    auto fill = ops->fill(-204).build(*image);
 
     operations::callNullary(fill, *image).wait();
     image->read(outBuf).wait();
@@ -162,9 +156,7 @@ TEST_CASE( "32-bit integer image", "[accelerated-arrays-opengl]" ) {
     REQUIRE(int(outBuf[0]) == -111);
 
     auto ops = opengl::operations::createFactory(*processor);
-    auto fill = ops->create(
-            operations::fill::Spec{}.setValue({ -204 }),
-            *image);
+    auto fill = ops->fill(-204).build(*image);
 
     operations::callNullary(fill, *image).wait();
     image->read(outBuf).wait();
@@ -186,9 +178,7 @@ TEST_CASE( "float image", "[accelerated-arrays-opengl]" ) {
     REQUIRE(std::fabs(outBuf[0] - 3.14159) < 1e-5);
 
     auto ops = opengl::operations::createFactory(*processor);
-    auto fill = ops->create(
-            operations::fill::Spec{}.setValue({ 201, 202, -3.14159 }),
-            *image);
+    auto fill = ops->fill({ 201, 202, -3.14159 }).build(*image);
 
     operations::callNullary(fill, *image).wait();
     image->read(outBuf).wait();
@@ -206,9 +196,7 @@ TEST_CASE( "GLFW draw to window", "[accelerated-arrays-opengl]" ) {
     auto ops = opengl::operations::createFactory(*processor);
 
     auto screen = factory->wrapScreen(width, height);
-    auto fill = ops->create(
-            operations::fill::Spec{}.setValue({ 1, 0, 0.5, 1 }),
-            *screen);
+    auto fill = ops->fill({ 1, 0, 0.5, 1 }).build(*screen);
 
     REQUIRE(wnd == nullptr);
     int itr = 0;

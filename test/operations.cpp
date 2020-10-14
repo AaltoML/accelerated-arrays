@@ -55,15 +55,14 @@ TEST_CASE( "Convolution 2D", "[accelerated-arrays]" ) {
         image->writeRawFixedPoint(inData).wait();
         //for (auto &el : inData) std::cout << "in-data:" << int(el) << std::endl;
 
-        auto convolution = it.ops->create(
-                operations::fixedConvolution2D::Spec{}
-                    .setKernel({
-                        { -1, 0, 1 },
-                        { -3, 0, 3 },
-                        { -1, 0, 1 }}, 1/3.0)
-                    .setBias(1e-5),
-                *image
-            );
+        auto convolution = it.ops->fixedConvolution2D({
+                { -1, 0, 1 },
+                { -3, 0, 3 },
+                { -1, 0, 1 }
+            })
+            .scaleKernelValues(1/3.0)
+            .setBias(1e-5)
+            .build(*image);
 
         auto outImage = it.img->createLike(*image);
         operations::callUnary(convolution, *image, *outImage).wait();
@@ -118,28 +117,19 @@ TEST_CASE( "Affine pixel ops", "[accelerated-arrays]" ) {
 
         auto intermediaryImage = it.img->create<std::int16_t, 3>(3, 4);
 
-        auto pixAffine = it.ops->create(
-                operations::pixelwiseAffine::Spec{}
-                    .setLinear({
-                        { -1, 1 },
-                        { 0, 2 },
-                        { 1, 1 }}, 1000)
-                    .setBias({5, 0, 0}),
-                *inImage,
-                *intermediaryImage
-            );
+        auto pixAffine = it.ops->pixelwiseAffine({
+                { -1, 1 },
+                { 0, 2 },
+                { 1, 1 }
+            })
+            .scaleLinearValues(1000)
+            .setBias({5, 0, 0})
+            .build(*inImage, *intermediaryImage);
 
         operations::callUnary(pixAffine, *inImage, *intermediaryImage).wait();
 
         auto outImage = it.img->create<Type, 3>(3, 4);
-
-        auto chanAffine = it.ops->create(
-                operations::channelwiseAffine::Spec{}
-                    .setScale(0.1)
-                    .setBias(-0.02),
-                *intermediaryImage,
-                *outImage
-            );
+        auto chanAffine = it.ops->channelwiseAffine(0.1, -0.02).build(*intermediaryImage, *outImage);
 
         operations::callUnary(chanAffine, *intermediaryImage, *outImage).wait();
 

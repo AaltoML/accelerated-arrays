@@ -7,8 +7,13 @@
 namespace accelerated {
 namespace operations {
 
+struct StandardFactory;
+struct Builder {
+    StandardFactory *factory = nullptr;
+};
+
 namespace fill {
-    struct Spec {
+    struct Spec : Builder {
         std::vector<double> value;
         Spec setValue(const std::vector<double> &v) {
             value = v;
@@ -19,12 +24,14 @@ namespace fill {
             value = { static_cast<double>(v) };
             return *this;
         }
+
+        Function build(const ImageTypeSpec &outSpec);
     };
 }
 
 // fixed-kernel 2D convolution
 namespace fixedConvolution2D {
-    struct Spec {
+    struct Spec : Builder {
         // double can be losslesly converted to any of (u)int8/16/32 or float
         std::vector< std::vector<double> > kernel;
         double bias = 0.0;
@@ -36,10 +43,8 @@ namespace fixedConvolution2D {
 
         Image::Border border = Image::Border::ZERO;
 
-        Spec setKernel(const std::vector< std::vector<double> > &k, double scale = 1.0) {
+        Spec setKernel(const std::vector< std::vector<double> > &k) {
             kernel = k;
-            for (auto &row : kernel)
-                for (auto &el : row) el *= scale;
             return *this;
         }
 
@@ -69,6 +74,12 @@ namespace fixedConvolution2D {
             return *this;
         }
 
+        Spec scaleKernelValues(double scale) {
+            for (auto &row : kernel)
+                for (auto &el : row) el *= scale;
+            return *this;
+        }
+
         int getKernelXOffset() const {
             return -(kernel.at(0).size() / 2) + xOffset;
         }
@@ -76,6 +87,9 @@ namespace fixedConvolution2D {
         int getKernelYOffset() const {
             return -(kernel.size() / 2) + yOffset;
         }
+
+        Function build(const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec);
+        Function build(const ImageTypeSpec &spec);
     };
 }
 
@@ -85,16 +99,14 @@ namespace fixedConvolution2D {
  * must match the image. For a "broadcasting" version, use channelwiseAffine
  */
 namespace pixelwiseAffine {
-    struct Spec {
+    struct Spec  : Builder {
         // empty means identity transform
         std::vector< std::vector<double> > linear;
         // empty means no bias
         std::vector< double > bias;
 
-        Spec setLinear(const std::vector< std::vector<double> > &matrix, double scale = 1.0) {
+        Spec setLinear(const std::vector< std::vector<double> > &matrix) {
             linear = matrix;
-            for (auto &row : linear)
-                for (auto &el : row) el *= scale;
             return *this;
         }
 
@@ -102,6 +114,15 @@ namespace pixelwiseAffine {
             bias = b;
             return *this;
         }
+
+        Spec scaleLinearValues(double scale) {
+            for (auto &row : linear)
+                for (auto &el : row) el *= scale;
+            return *this;
+        }
+
+        Function build(const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec);
+        Function build(const ImageTypeSpec &spec);
     };
 }
 
@@ -111,7 +132,7 @@ namespace pixelwiseAffine {
  * operation.
  */
 namespace channelwiseAffine {
-    struct Spec {
+    struct Spec : Builder {
         double scale = 1.0;
         double bias = 0.0;
 
@@ -124,20 +145,43 @@ namespace channelwiseAffine {
             bias = b;
             return *this;
         }
+
+        Function build(const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec);
+        Function build(const ImageTypeSpec &spec);
     };
 }
 
-struct StandardFactory {
-    virtual ~StandardFactory() = default;
+struct StandardFactory : Builder {
+    virtual ~StandardFactory();
 
+    // shorthands
+    fill::Spec fill(const std::vector<double> &v) { return setFactory(fill::Spec{}.setValue(v)); }
+    fill::Spec fill(double v) { return setFactory(fill::Spec{}.setValue({ v })); }
+
+    channelwiseAffine::Spec copy() {
+      return setFactory(channelwiseAffine::Spec{});
+    }
+
+    channelwiseAffine::Spec channelwiseAffine(double scale, double bias = 0.0) {
+      return setFactory(channelwiseAffine::Spec{}.setScale(scale).setBias(bias));
+    }
+
+    pixelwiseAffine::Spec pixelwiseAffine(const std::vector< std::vector<double> > &matrix) {
+      return setFactory(pixelwiseAffine::Spec{}.setLinear(matrix));
+    }
+
+    fixedConvolution2D::Spec fixedConvolution2D(const std::vector< std::vector<double> > &kernel) {
+      return setFactory(fixedConvolution2D::Spec{}.setKernel(kernel));
+    }
+
+    // actual implementation
     virtual Function create(const fill::Spec &spec, const ImageTypeSpec &imageSpec) = 0;
-    virtual Function create(const fixedConvolution2D::Spec &spec, const ImageTypeSpec &imageSpec) = 0;
+    virtual Function create(const fixedConvolution2D::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) = 0;
     virtual Function create(const pixelwiseAffine::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) = 0;
     virtual Function create(const channelwiseAffine::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) = 0;
 
-    // shorthands for same input & output spec
-    inline Function create(const pixelwiseAffine::Spec &s, const ImageTypeSpec &i) { return create(s, i, i); }
-    inline Function create(const channelwiseAffine::Spec &s, const ImageTypeSpec &i) { return create(s, i, i); }
+private:
+    template <class T> inline T &&setFactory(T &&t) { t.factory = this; return std::move(t); }
 };
 
 }

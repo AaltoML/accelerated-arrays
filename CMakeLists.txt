@@ -21,6 +21,7 @@ set(SRC_FILES
     src/image.cpp
     src/log_and_assert.cpp
     src/queue.cpp
+    src/standard_ops.cpp
 )
 
 # a bit tedious to list all these manually
