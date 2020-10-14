@@ -38,42 +38,46 @@ void forEachPixelAndChannel(Image &img, const std::function<void(Image &img, int
     }
 }
 
-template <class T> Nullary fill(const FillSpec &spec) {
+Nullary fill(const FillSpec &spec) {
     return [spec](Image &output) {
         forEachPixelAndChannel(output, [&spec](Image &output, int x, int y, int c) {
-            output.set<T>(x, y, c, static_cast<T>(spec.value.at(c)));
+            output.setFloat(x, y, c, spec.value.at(c));
         });
     };
 }
 
-template <class InType, class OutType> Unary pixelwiseAffine(const PixelwiseAffineSpec &spec) {
-    return [spec](Image &input, Image &output) {
+Unary pixelwiseAffine(const PixelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
+    return [spec, inSpec, outSpec](Image &input, Image &output) {
         aa_assert(int(spec.linear.size()) == output.channels);
+        aa_assert(input == inSpec);
+        aa_assert(output == outSpec);
         forEachPixelAndChannel(output, [&spec, &input](Image &output, int x, int y, int c) {
             double v = spec.bias.at(c);
             const auto &matRow = spec.linear.at(c);
             aa_assert(int(matRow.size()) == input.channels);
             for (int inChan = 0; inChan < input.channels; ++inChan) {
-                const double inValue = input.get<InType>(x, y, inChan);
+                const double inValue = input.getFloat(x, y, inChan);
                 v += matRow.at(inChan) * inValue;
             }
             // std::cout << x << " " << y << " " << c << " = " << v << std::endl;
-            output.set<OutType>(x, y, c, static_cast<OutType>(v));
+            output.setFloat(x, y, c, v);
         });
     };
 }
 
-template <class InType, class OutType> Unary channelwiseAffine(const ChannelwiseAffineSpec &spec) {
-    return [spec](Image &input, Image &output) {
+Unary channelwiseAffine(const ChannelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
+    return [spec, inSpec, outSpec](Image &input, Image &output) {
         aa_assert(output.channels == input.channels);
+        aa_assert(input == inSpec);
+        aa_assert(output == outSpec);
         forEachPixelAndChannel(output, [&spec, &input](Image &output, int x, int y, int c) {
-            const double inValue = input.get<InType>(x, y, c);
-            output.set<OutType>(x, y, c, static_cast<OutType>(spec.scale * inValue + spec.bias));
+            const double inValue = input.getFloat(x, y, c);
+            output.setFloat(x, y, c, spec.scale * inValue + spec.bias);
         });
     };
 }
 
-template <class T> Unary fixedConvolution2D(const FixedConvolution2DSpec &spec) {
+Unary fixedConvolution2D(const FixedConvolution2DSpec &spec) {
     aa_assert(!spec.kernel.empty());
     return [spec](Image &input, Image &output) {
         const int kernelXOffset = spec.getKernelXOffset();
@@ -86,13 +90,13 @@ template <class T> Unary fixedConvolution2D(const FixedConvolution2DSpec &spec) 
                 const auto &krow = spec.kernel.at(i);
                 for (int j = 0; j < int(krow.size()); ++j) {
                     const int x1 = x * spec.xStride + j + kernelXOffset;
-                    v += double(input.get<T>(x1, y1, c, spec.border)) * krow.at(j);
+                    v += input.getFloat(x1, y1, c, spec.border) * krow.at(j);
                     //std::cout << " x:" << x << " y:" << y << " c:" << c << " i:" << i << " j:"  << j
                     // << " x1:" << x1 << " y1:" << y1 << " : " << double(input.get<T>(x1, y1, c, spec.border)) << " * " <<  krow.at(j) << std::endl;
                  }
             }
             // std::cout << x << " " << y << " " << c << " = " << v << std::endl;
-            output.set<T>(x, y, c, T(v));
+            output.setFloat(x, y, c, v);
         });
     };
 }
@@ -120,45 +124,20 @@ public:
     }
 
     Function create(const FixedConvolution2DSpec &spec, const ImageTypeSpec &imageSpec) final {
-        #define X(dtype) \
-            if (imageSpec.dataType == ImageTypeSpec::getType<dtype>()) \
-                return wrapChecked(fixedConvolution2D<dtype>(spec), imageSpec);
-        ACCELERATED_IMAGE_FOR_EACH_TYPE(X)
-        #undef X
-        aa_assert(false);
-        return {};
+        return wrapChecked(fixedConvolution2D(spec), imageSpec);
     }
 
     Function create(const FillSpec &spec, const ImageTypeSpec &imageSpec) final {
         aa_assert(int(spec.value.size()) == imageSpec.channels);
-        #define X(dtype) \
-            if (imageSpec.dataType == ImageTypeSpec::getType<dtype>()) \
-                return wrapChecked(fill<dtype>(spec), imageSpec);
-        ACCELERATED_IMAGE_FOR_EACH_TYPE(X)
-        #undef X
-        aa_assert(false);
-        return {};
+        return wrapChecked(fill(spec), imageSpec);
     }
 
     Function create(const PixelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
-        // NOTE: this will cause some template bloat
-        #define X(inType, outType) \
-            if (inSpec.dataType == ImageTypeSpec::getType<inType>() && outSpec.dataType == ImageTypeSpec::getType<outType>()) \
-                return wrap<Unary>(pixelwiseAffine<inType, outType>(spec));
-        ACCELERATED_IMAGE_FOR_EACH_TYPE_PAIR(X)
-        #undef X
-        aa_assert(false);
-        return {};
+        return wrap<Unary>(pixelwiseAffine(spec, inSpec, outSpec));
     }
 
     Function create(const ChannelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
-        #define X(inType, outType) \
-            if (inSpec.dataType == ImageTypeSpec::getType<inType>() && outSpec.dataType == ImageTypeSpec::getType<outType>()) \
-                return wrap<Unary>(channelwiseAffine<inType, outType>(spec));
-        ACCELERATED_IMAGE_FOR_EACH_TYPE_PAIR(X)
-        #undef X
-        aa_assert(false);
-        return {};
+        return wrap<Unary>(channelwiseAffine(spec, inSpec, outSpec));
     }
 };
 }
