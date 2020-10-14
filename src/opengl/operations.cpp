@@ -93,12 +93,12 @@ Shader<Unary>::Builder rescale(const RescaleSpec &spec, const ImageTypeSpec &inS
         shader->resources = GlslPipeline::create(fragmentShaderBody.c_str(), { inSpec }, outSpec);
         GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
 
-        shader->function = [&pipeline, inSpec, outSpec, spec](Image &input, Image &output) {
+        pipeline.setTextureBorder(0, spec.border);
+        pipeline.setTextureInterpolation(0, spec.interpolation);
+
+        shader->function = [&pipeline, inSpec, outSpec](Image &input, Image &output) {
             aa_assert(input == inSpec);
             aa_assert(output == outSpec);
-
-            input.setBorder(spec.border);
-            input.setInterpolation(spec.interpolation);
 
             Binder binder(pipeline);
             Binder inputBinder(pipeline.bindTexture(0, input.getTextureId()));
@@ -255,9 +255,9 @@ Shader<Unary>::Builder fixedConvolution2D(const FixedConvolution2DSpec &spec, co
         std::unique_ptr< Shader<Unary> > shader(new Shader<Unary>);
         shader->resources = GlslPipeline::create(fragmentShaderBody.c_str(), { inSpec }, outSpec);
         GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
+        pipeline.setTextureBorder(0, spec.border);
 
         shader->function = [&pipeline, spec](Image &input, Image &output) {
-            input.setBorder(spec.border);
             Binder binder(pipeline);
             Binder inputBinder(pipeline.bindTexture(0, input.getTextureId()));
             pipeline.call(output.getFrameBuffer());

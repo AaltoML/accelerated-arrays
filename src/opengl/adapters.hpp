@@ -82,9 +82,6 @@ struct FrameBuffer : Destroyable, Binder::Target {
     virtual int getId() const = 0;
     virtual int getTextureId() const = 0;
 
-    virtual void setTextureBorder(::accelerated::Image::Border border) = 0;
-    virtual void setTextureInterpolation(::accelerated::Image::Interpolation interpolation) = 0;
-
 };
 
 struct GlslProgram : Destroyable, Binder::Target {
@@ -110,6 +107,13 @@ struct GlslFragmentShader : GlslProgram {
 struct GlslPipeline : GlslFragmentShader {
     static std::unique_ptr<GlslPipeline> create(const char *fragmentMain, const std::vector<ImageTypeSpec> &inputs, const ImageTypeSpec &output);
     virtual Binder::Target &bindTexture(unsigned index, int textureId) = 0;
+
+    // Note: different from how OpenGL works as the texture parameters are
+    // part of the texture state, not the texture "slot / unit", but in this
+    // library, it makes more sense to define the interpolation paramters
+    // as part of the processing pipeline rather than the images themselves
+    virtual void setTextureInterpolation(unsigned index, ::accelerated::Image::Interpolation i) = 0;
+    virtual void setTextureBorder(unsigned index, ::accelerated::Image::Border b) = 0;
 };
 
 }
