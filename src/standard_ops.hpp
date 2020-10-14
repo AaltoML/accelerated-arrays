@@ -185,12 +185,62 @@ namespace channelwiseAffine {
     };
 }
 
+/**
+ * Rescale image: all units relative to OUTPUT image size, e.g.,
+ * setScale(1, 1) resizes to fit output size.
+ */
+namespace rescale {
+    struct Spec : Builder {
+        Image::Interpolation interpolation = Image::Interpolation::UNDEFINED;
+        Image::Border border = Image::Border::UNDEFINED;
+
+        // all relative to image size
+        double xScale = 1.0;
+        double yScale = 1.0;
+        double xTranslation = 0.0;
+        double yTranslation = 0.0;
+
+        Spec setScale(double x, double y) {
+            xScale = x;
+            yScale = y;
+            return *this;
+        }
+
+        Spec setScale(double s) {
+            return setScale(s, s);
+        }
+
+        Spec setTranslation(double x, double y) {
+            xTranslation = x;
+            yTranslation = y;
+            return *this;
+        }
+
+        Spec setInterpolation(Image::Interpolation i) {
+            interpolation = i;
+            return *this;
+        }
+
+        Spec setBorder(Image::Border b) {
+            border = b;
+            return *this;
+        }
+
+        Function build(const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec);
+        Function build(const ImageTypeSpec &spec);
+    };
+}
+
 struct StandardFactory : Builder {
     virtual ~StandardFactory();
 
     // shorthands
     fill::Spec fill(const std::vector<double> &v) { return setFactory(fill::Spec{}.setValue(v)); }
     fill::Spec fill(double v) { return setFactory(fill::Spec{}.setValue({ v })); }
+
+    rescale::Spec rescale() { return setFactory(rescale::Spec{}); }
+    rescale::Spec rescale(double s) { return rescale().setScale(s); }
+    rescale::Spec rescale(double x, double y) { return rescale().setScale(x, y); }
 
     channelwiseAffine::Spec copy() {
       return setFactory(channelwiseAffine::Spec{});
@@ -217,6 +267,7 @@ struct StandardFactory : Builder {
 
     // actual implementation
     virtual Function create(const fill::Spec &spec, const ImageTypeSpec &imageSpec) = 0;
+    virtual Function create(const rescale::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) = 0;
     virtual Function create(const fixedConvolution2D::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) = 0;
     virtual Function create(const pixelwiseAffineCombination::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) = 0;
     virtual Function create(const channelwiseAffine::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) = 0;

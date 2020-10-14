@@ -10,6 +10,7 @@ namespace {
 typedef ::accelerated::Image BaseImage;
 typedef ::accelerated::operations::fixedConvolution2D::Spec FixedConvolution2DSpec;
 typedef ::accelerated::operations::fill::Spec FillSpec;
+typedef ::accelerated::operations::rescale::Spec RescaleSpec;
 typedef ::accelerated::operations::pixelwiseAffineCombination::Spec PixelwiseAffineCombinationSpec;
 typedef ::accelerated::operations::channelwiseAffine::Spec ChannelwiseAffineSpec;
 using ::accelerated::operations::Function;
@@ -17,6 +18,12 @@ using ::accelerated::operations::Function;
 void checkSpec(const ImageTypeSpec &spec) {
     (void)spec;
     aa_assert(spec.storageType == ImageTypeSpec::StorageType::CPU);
+}
+
+double interpolateFloat(Image &img, double x, double y, int c, Image::Interpolation i, Image::Border b) {
+    aa_assert(i == Image::Interpolation::NEAREST || i == Image::Interpolation::UNDEFINED); // TODO
+    // note: not necessarily consisten rounding for negative vals
+    return img.getFloat(int(x + 0.5), int(y + 0.5), c, b);
 }
 
 namespace impl { // to avoid name clashes with StandardFactory
@@ -37,6 +44,22 @@ Nullary fill(const FillSpec &spec, const ImageTypeSpec &outSpec) {
         aa_assert(output == outSpec);
         forEachPixelAndChannel(output, [&spec](Image &output, int x, int y, int c) {
             output.setFloat(x, y, c, spec.value.at(c));
+        });
+    };
+}
+
+Unary rescale(const RescaleSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
+    return [spec, inSpec, outSpec](Image &input, Image &output) {
+        aa_assert(output.channels == input.channels);
+        aa_assert(input == inSpec);
+        aa_assert(output == outSpec);
+        forEachPixelAndChannel(output, [&spec, &input](Image &output, int x, int y, int c) {
+            double relX = x / double(output.width);
+            double relY = y / double(output.height);
+            double newX = (relX * spec.xScale + spec.xTranslation) * input.width;
+            double newY = (relY * spec.yScale + spec.yTranslation) * input.height;
+
+            output.setFloat(x, y, c, interpolateFloat(input, newX, newY, c, spec.interpolation, spec.border));
         });
     };
 }
@@ -100,7 +123,6 @@ Unary fixedConvolution2D(const FixedConvolution2DSpec &spec, const ImageTypeSpec
         });
     };
 }
-
 }
 
 class CpuFactory : public Factory {
@@ -123,6 +145,12 @@ public:
     Function create(const FillSpec &spec, const ImageTypeSpec &imageSpec) final {
         checkSpec(imageSpec);
         return wrap<Nullary>(impl::fill(spec, imageSpec));
+    }
+
+    Function create(const RescaleSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
+        checkSpec(inSpec);
+        checkSpec(outSpec);
+        return wrap<Unary>(impl::rescale(spec, inSpec, outSpec));
     }
 
     Function create(const PixelwiseAffineCombinationSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {

@@ -81,7 +81,12 @@ private:
     int getGlBorderType() const {
         switch (border) {
             case Image::Border::UNDEFINED: return 0;
-            case Image::Border::ZERO: return GL_CLAMP_TO_BORDER; // TODO: check
+            case Image::Border::ZERO:
+            #ifdef ACCELERATED_ARRAYS_USE_OPENGL_ES
+                aa_assert(false && "GL_CLAMP_TO_BORDER is not supported in OpenGL ES");
+            #else
+                return GL_CLAMP_TO_BORDER; // TODO: check
+            #endif
             case Image::Border::REPEAT: return GL_REPEAT;
             case Image::Border::MIRROR: return GL_MIRRORED_REPEAT;
             case Image::Border::CLAMP: return GL_CLAMP_TO_EDGE;

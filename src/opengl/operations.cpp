@@ -12,6 +12,7 @@ namespace opengl {
 namespace operations {
 namespace {
 typedef ::accelerated::operations::fill::Spec FillSpec;
+typedef ::accelerated::operations::rescale::Spec RescaleSpec;
 typedef ::accelerated::operations::fixedConvolution2D::Spec FixedConvolution2DSpec;
 typedef ::accelerated::operations::pixelwiseAffineCombination::Spec PixelwiseAffineCombinationSpec;
 typedef ::accelerated::operations::channelwiseAffine::Spec ChannelwiseAffineSpec;
@@ -46,6 +47,40 @@ Shader<Nullary>::Builder fill(const FillSpec &spec, const ImageTypeSpec &imageSp
         shader->function = [&pipeline](Image &output) {
             // GLSL shader invocation also happens in the GL thread
             Binder binder(pipeline);
+            pipeline.call(output.getFrameBuffer());
+        };
+
+        return shader;
+    };
+}
+
+Shader<Unary>::Builder rescale(const RescaleSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
+    std::string fragmentShaderBody;
+    {
+        std::ostringstream oss;
+        const auto swiz = glsl::swizzleSubset(inSpec.channels);
+        oss << "const vec2 scale = vec2(" << spec.xScale << ", " << spec.yScale << ");\n"
+            << "const vec2 trans = vec2(" << spec.xTranslation << ", " << spec.yTranslation << ");\n"
+            << "void main() {\n"
+            << "outValue = " << getGlslVecType(outSpec)
+            << "(texture(u_texture, scale * v_texCoord + trans)."
+            << glsl::swizzleSubset(outSpec.channels)
+            << ");\n"
+            << "}\n";
+
+        fragmentShaderBody = oss.str();
+    }
+
+    return [fragmentShaderBody, inSpec, outSpec]() {
+        std::unique_ptr< Shader<Unary> > shader(new Shader<Unary>);
+        shader->resources = GlslPipeline::create(fragmentShaderBody.c_str(), { inSpec }, outSpec);
+        GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
+
+        shader->function = [&pipeline, inSpec, outSpec](Image &input, Image &output) {
+            aa_assert(input == inSpec);
+            aa_assert(output == outSpec);
+            Binder binder(pipeline);
+            Binder inputBinder(pipeline.bindTexture(0, input.getTextureId()));
             pipeline.call(output.getFrameBuffer());
         };
 
@@ -308,6 +343,12 @@ public:
     Function create(const FillSpec &spec, const ImageTypeSpec &imageSpec) final {
         checkSpec(imageSpec);
         return wrap<Nullary>(impl::fill(spec, imageSpec));
+    }
+
+    Function create(const RescaleSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
+        checkSpec(inSpec);
+        checkSpec(outSpec);
+        return wrap<Unary>(impl::rescale(spec, inSpec, outSpec));
     }
 
     Function create(const PixelwiseAffineCombinationSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
