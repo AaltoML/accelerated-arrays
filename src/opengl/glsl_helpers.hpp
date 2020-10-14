@@ -42,7 +42,7 @@ std::string swizzleSubset(std::size_t n) {
 }
 
 std::string floatVecType(int channels) {
-    if (channels == 0) return "float";
+    if (channels == 1) return "float";
     std::ostringstream oss;
     oss << "vec" << channels;
     return oss.str();

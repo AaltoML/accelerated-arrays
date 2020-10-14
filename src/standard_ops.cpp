@@ -18,6 +18,7 @@ Function fill::Spec::build(const ImageTypeSpec &outSpec) {
     } \
     Function x::Spec::build(const ImageTypeSpec &spec) { return build(spec, spec); }
 
+DEF_FUNC(rescale)
 DEF_FUNC(fixedConvolution2D)
 DEF_FUNC(channelwiseAffine)
 DEF_FUNC(pixelwiseAffine)

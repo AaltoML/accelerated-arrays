@@ -158,7 +158,7 @@ Shader<NAry>::Builder pixelwiseAffineCombination(const PixelwiseAffineCombinatio
             oss << "vec4 texValue" << i << " = vec4(texelFetch(u_texture";
             if (nInputs > 1) oss << (i + 1);
             oss << ", ivec2(v_texCoord * vec2(u_outSize)), 0));\n";
-            oss << "v += " << vtype << "(";
+            oss << "v += (";
             if (!mat.empty()) oss << "m" << i << " * ";
             oss << "texValue" << i <<  ")." << swiz << ";\n";
         }
