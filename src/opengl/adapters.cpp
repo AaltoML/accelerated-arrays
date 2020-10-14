@@ -32,6 +32,8 @@ void checkError(const char *tag) { checkError(tag, nullptr); }
 struct Texture : Destroyable, Binder::Target {
     static std::unique_ptr<Texture> create(int w, int h, const ImageTypeSpec &spec);
     virtual int getId() const = 0;
+    virtual void setBorder(Image::Border border) = 0;
+    virtual void setInterpolation(Image::Interpolation interpolation) = 0;
 };
 
 namespace {
@@ -73,6 +75,30 @@ class TextureImplementation : public Texture {
 private:
     const GLuint bindType;
     GLuint id;
+    Image::Border border = Image::Border::UNDEFINED;
+    Image::Interpolation interpolation = Image::Interpolation::NEAREST;
+
+    int getGlBorderType() const {
+        switch (border) {
+            case Image::Border::UNDEFINED: return 0;
+            case Image::Border::ZERO: return GL_CLAMP_TO_BORDER; // TODO: check
+            case Image::Border::REPEAT: return GL_REPEAT;
+            case Image::Border::MIRROR: return GL_MIRRORED_REPEAT;
+            case Image::Border::CLAMP: return GL_CLAMP_TO_EDGE;
+        }
+        aa_assert(false);
+        return 0;
+    }
+
+    int getGlInterpType() const {
+        switch (interpolation) {
+            case Image::Interpolation::UNDEFINED: return 0;
+            case Image::Interpolation::NEAREST: return GL_NEAREST;
+            case Image::Interpolation::LINEAR: return GL_LINEAR;
+        }
+        aa_assert(false);
+        return 0;
+    }
 
 public:
     TextureImplementation(int width, int height, const ImageTypeSpec &spec)
@@ -88,10 +114,6 @@ public:
             width, height, 0,
             getCpuFormat(spec),
             getCpuType(spec), nullptr);
-
-        // TODO: move somewhere else
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
         CHECK_ERROR(__FUNCTION__);
     }
@@ -114,6 +136,17 @@ public:
         glBindTexture(bindType, id);
         LOG_TRACE("bound texture %d", id);
         CHECK_ERROR(__FUNCTION__);
+        const int interpType = getGlInterpType();
+        if (interpType != 0) {
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, interpType);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, interpType);
+        }
+        const int borderType = getGlBorderType();
+        if (borderType != 0) {
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, borderType);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, borderType);
+        }
+        CHECK_ERROR(__FUNCTION__);
     }
 
     void unbind() final {
@@ -129,6 +162,14 @@ public:
         glBindTexture(bindType, 0);
         LOG_TRACE("unbound texture");
         CHECK_ERROR(__FUNCTION__);
+    }
+
+    void setBorder(Image::Border b) {
+        border = b;
+    }
+
+    void setInterpolation(Image::Interpolation i) {
+        interpolation = i;
     }
 
     int getId() const { return id; }
@@ -283,6 +324,16 @@ public:
     int getTextureId() const final {
         aa_assert(texture && "cannot get texture ID of external frame buffer");
         return texture->getId();
+    }
+
+    void setTextureBorder(Image::Border border) final {
+        aa_assert(texture && "not supported for external targets");
+        return texture->setBorder(border);
+    }
+
+    void setTextureInterpolation(Image::Interpolation interpolation) final {
+        aa_assert(texture && "not supported for external targets");
+        return texture->setInterpolation(interpolation);
     }
 };
 

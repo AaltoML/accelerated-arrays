@@ -14,9 +14,9 @@
 #include <GL/gl.h>
 #endif
 
-namespace accelerated {
-struct ImageTypeSpec;
+#include "../image.hpp"
 
+namespace accelerated {
 namespace opengl {
 void checkError(const char *tag);
 int getTextureInternalFormat(const ImageTypeSpec &spec);
@@ -81,6 +81,9 @@ struct FrameBuffer : Destroyable, Binder::Target {
 
     virtual int getId() const = 0;
     virtual int getTextureId() const = 0;
+
+    virtual void setTextureBorder(::accelerated::Image::Border border) = 0;
+    virtual void setTextureInterpolation(::accelerated::Image::Interpolation interpolation) = 0;
 
 };
 

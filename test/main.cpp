@@ -57,11 +57,11 @@ TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
             REQUIRE(cpuImg.get<std::int16_t>(2, 0, 0) == 5);
             REQUIRE(cpuImg.get<std::int16_t>(2, 1, 1) == 6);
             REQUIRE(std::fabs(cpuImg.getFloat(2, 1, 1) - 6) < 1e-10);
-            REQUIRE(cpuImg.get<std::int16_t>(3, 0, 0, Image::Border::REPEAT) == 5);
+            REQUIRE(cpuImg.get<std::int16_t>(3, 0, 0, Image::Border::CLAMP) == 5);
             REQUIRE(cpuImg.get<std::int16_t>(3, 0, 0, Image::Border::MIRROR) == 3);
             REQUIRE(cpuImg.get<std::int16_t>(3, 0, 0, Image::Border::ZERO) == 0);
-            REQUIRE(cpuImg.get<std::int16_t>(3, 0, 0, Image::Border::WRAP) == 1);
-            REQUIRE(std::fabs(cpuImg.getFloat(3, 0, 0, Image::Border::REPEAT) - 5) < 1e-10);
+            REQUIRE(cpuImg.get<std::int16_t>(3, 0, 0, Image::Border::REPEAT) == 1);
+            REQUIRE(std::fabs(cpuImg.getFloat(3, 0, 0, Image::Border::CLAMP) - 5) < 1e-10);
             auto pix = cpuImg.get<std::int16_t, 2>(1, 0);
             REQUIRE(pix.size() == 2);
             REQUIRE(pix.at(0) ==  3);

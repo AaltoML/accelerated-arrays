@@ -98,7 +98,14 @@ struct Image : ImageTypeSpec {
         ZERO,
         REPEAT,
         MIRROR,
-        WRAP
+        CLAMP
+    };
+
+    // potentially supported interpolation types
+    enum class Interpolation {
+        UNDEFINED, // whatever is currently set / don't care
+        NEAREST,
+        LINEAR
     };
 
     class Factory {

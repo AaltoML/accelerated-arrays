@@ -209,12 +209,13 @@ Shader<Unary>::Builder fixedConvolution2D(const FixedConvolution2DSpec &spec, co
         fragmentShaderBody = oss.str();
     }
 
-    return [fragmentShaderBody, inSpec, outSpec]() {
+    return [fragmentShaderBody, spec, inSpec, outSpec]() {
         std::unique_ptr< Shader<Unary> > shader(new Shader<Unary>);
         shader->resources = GlslPipeline::create(fragmentShaderBody.c_str(), { inSpec }, outSpec);
         GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
 
-        shader->function = [&pipeline](Image &input, Image &output) {
+        shader->function = [&pipeline, spec](Image &input, Image &output) {
+            input.setBorder(spec.border);
             Binder binder(pipeline);
             Binder inputBinder(pipeline.bindTexture(0, input.getTextureId()));
             pipeline.call(output.getFrameBuffer());

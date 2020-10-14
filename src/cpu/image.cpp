@@ -81,12 +81,12 @@ inline bool applyBorder1D(int &i, int size, Image::Border border) {
         aa_assert(i >= 0 && i < size); // multiple mirroring undefined
         return true;
     case Image::Border::REPEAT:
-        if (i < 0) i = 0;
-        else if (i >= size) i = size - 1;
-        return true;
-    case Image::Border::WRAP:
         if (i < 0) i = size - (-i % size);
         else i = i % size;
+        return true;
+    case Image::Border::CLAMP:
+        if (i < 0) i = 0;
+        else if (i >= size) i = size - 1;
         return true;
     case Image::Border::UNDEFINED:
     default:

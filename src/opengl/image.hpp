@@ -7,7 +7,11 @@ namespace opengl {
 struct FrameBuffer;
 class Image : public ::accelerated::Image {
 public:
-    // OpenGL-specifics
+    // OpenGL-specifics, may not be safe to call from outside the GL thread,
+    // use with caution
+    virtual void setBorder(Border border) = 0;
+    virtual void setInterpolation(Interpolation interpolation) = 0;
+
     virtual int getTextureId() const = 0;
     virtual bool supportsDirectRead() const = 0;
     virtual bool supportsDirectWrite() const = 0;

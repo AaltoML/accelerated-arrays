@@ -45,6 +45,16 @@ public:
         aa_assert(false && "not supported");
         return *reinterpret_cast<FrameBuffer*>(0);
     }
+
+    void setBorder(Border border) final {
+        (void)border;
+        aa_assert(false && "TODO; not currently supported for ext images");
+    }
+
+    void setInterpolation(Interpolation interpolation) final {
+        (void)interpolation;
+        aa_assert(false && "TODO: not currently supported for ext images");
+    }
 };
 
 class FrameBufferManager final : public Image::Factory {
@@ -195,12 +205,22 @@ public:
         #endif
     }
 
-    virtual bool supportsDirectWrite() const final {
+    bool supportsDirectWrite() const final {
         return true;
     }
 
     FrameBuffer &getFrameBuffer() final {
-        return *manager.getFrameBuffer(this);
+        auto fb = manager.getFrameBuffer(this);
+        aa_assert(fb && "frame buffer object not created yet");
+        return *fb;
+    }
+
+    void setBorder(Border border) {
+        getFrameBuffer().setTextureBorder(border);
+    }
+
+    void setInterpolation(Interpolation interpolation) {
+        getFrameBuffer().setTextureInterpolation(interpolation);
     }
 };
 
