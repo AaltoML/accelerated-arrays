@@ -350,11 +350,14 @@ GLuint createProgram(const char* vertexSource, const char* fragmentSource) {
 
 class GlslProgramImplementation : public GlslProgram {
 private:
+    std::string vertSrc, fragSrc;
     GLuint program;
 
 public:
-    GlslProgramImplementation(const char *vs, const char *fs)
-    : program(createProgram(vs, fs)) {}
+    GlslProgramImplementation(const char *vs, const char *fs) :
+        vertSrc(vs), fragSrc(fs),
+        program(createProgram(vertSrc.c_str(), fragSrc.c_str()))
+    {}
 
     int getId() const final { return program; }
 
@@ -380,6 +383,14 @@ public:
         if (program != 0) {
             log_warn("leaking GL program %d", program);
         }
+    }
+
+    std::string getFragmentShaderSource() const {
+        return fragSrc;
+    }
+
+    std::string getVertexShaderSource() const {
+        return vertSrc;
     }
 };
 
@@ -506,6 +517,14 @@ public:
     int getId() const final {
         return program.getId();
     }
+
+    std::string getFragmentShaderSource() const {
+        return program.getFragmentShaderSource();
+    }
+
+    std::string getVertexShaderSource() const {
+        return program.getVertexShaderSource();
+    }
 };
 
 class TextureUniformBinder : public Binder::Target {
@@ -623,6 +642,7 @@ private:
         oss << "in vec2 v_texCoord;\n";
         oss << fragmentMain;
         oss << std::endl;
+
         return oss.str();
     }
 
@@ -687,6 +707,8 @@ public:
     void bind() final { program.bind(); }
     void unbind() final { program.unbind(); }
     int getId() const final { return program.getId(); }
+    std::string getFragmentShaderSource() const { return program.getFragmentShaderSource(); }
+    std::string getVertexShaderSource() const { return program.getVertexShaderSource(); }
 };
 
 }

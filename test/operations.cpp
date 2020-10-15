@@ -37,7 +37,11 @@ TEST_CASE( "Convolution 2D", "[accelerated-arrays]" ) {
     items.emplace_back();
     items.back().processor = opengl::createGLFWProcessor();
     items.back().img = opengl::Image::createFactory(*items.back().processor);
-    items.back().ops = opengl::operations::createFactory(*items.back().processor);
+    {
+        auto gpuOps = opengl::operations::createFactory(*items.back().processor);
+        gpuOps->debugLogShaders(true);
+        items.back().ops = std::move(gpuOps);
+    }
 
     #endif
 

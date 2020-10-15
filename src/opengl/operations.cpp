@@ -212,7 +212,7 @@ Shader<Unary>::Builder fixedConvolution2D(const FixedConvolution2DSpec &spec, co
             if (i > 0) oss << ",\n";
             for (int j = 0; j < kernelW; ++j) {
                 if (j > 0) oss << ", ";
-                oss << spec.kernel.at(i).at(j);
+                oss << "float(" << spec.kernel.at(i).at(j) << ")";
             }
         }
         oss << "\n);\n";
@@ -271,18 +271,28 @@ Shader<Unary>::Builder fixedConvolution2D(const FixedConvolution2DSpec &spec, co
 class GpuFactory : public Factory {
 private:
     Processor &processor;
+    bool debug = false;
 
     class ShaderWrapper {
     private:
         typedef Shader<NAry> S;
         Processor &processor;
+        const bool debug = false;
         std::shared_ptr< S > shader;
 
     public:
-        ShaderWrapper(Processor &processor) : processor(processor) {}
+        ShaderWrapper(Processor &processor, bool debug)
+        : processor(processor), debug(debug)
+        {}
 
         void initialize(std::unique_ptr<S> s) {
             std::shared_ptr<S> tmp = std::move(s);
+            if (debug) {
+                // TODO: hacky
+                auto &p = reinterpret_cast<GlslPipeline&>(*tmp->resources);
+                log_debug("vertex shader:\n%s", p.getVertexShaderSource().c_str());
+                log_debug("fragment shader:\n%s", p.getFragmentShaderSource().c_str());
+            }
             std::atomic_store(&shader, tmp);
         }
 
@@ -307,6 +317,9 @@ private:
 public:
     GpuFactory(Processor &processor) : processor(processor) {}
 
+    void debugLogShaders(bool enabled) {
+        debug = enabled;
+    }
 
     Function wrapShader(
         const std::string &fragmentShaderBody,
@@ -316,7 +329,7 @@ public:
     };
 
     Function wrapNAry(const Shader<NAry>::Builder &builder) final {
-        std::shared_ptr<ShaderWrapper> wrapper(new ShaderWrapper(processor));
+        std::shared_ptr<ShaderWrapper> wrapper(new ShaderWrapper(processor, debug));
         processor.enqueue([builder, wrapper]() { wrapper->initialize(builder()); });
         return ::accelerated::operations::sync::wrap<Image>([wrapper](Image **inputs, int nInputs, Image &output) {
             wrapper->get()(inputs, nInputs, output);

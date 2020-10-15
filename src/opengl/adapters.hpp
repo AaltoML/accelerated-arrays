@@ -90,6 +90,10 @@ struct GlslProgram : Destroyable, Binder::Target {
         const char *fragmentShaderSource);
 
     virtual int getId() const = 0;
+
+    // useful for debugging
+    virtual std::string getFragmentShaderSource() const = 0;
+    virtual std::string getVertexShaderSource() const = 0;
 };
 
 /**
@@ -105,7 +109,11 @@ struct GlslFragmentShader : GlslProgram {
  * Default GlslFragmentShader with N input textures
  */
 struct GlslPipeline : GlslFragmentShader {
-    static std::unique_ptr<GlslPipeline> create(const char *fragmentMain, const std::vector<ImageTypeSpec> &inputs, const ImageTypeSpec &output);
+    static std::unique_ptr<GlslPipeline> create(
+        const char *fragmentMain,
+        const std::vector<ImageTypeSpec> &inputs,
+        const ImageTypeSpec &output);
+
     virtual Binder::Target &bindTexture(unsigned index, int textureId) = 0;
 
     // Note: different from how OpenGL works as the texture parameters are

@@ -43,6 +43,8 @@ public:
         const std::vector<ImageTypeSpec> &inputs,
         const ImageTypeSpec &output) = 0;
 
+    virtual void debugLogShaders(bool enabled) = 0;
+
 private:
     template <class T> static Shader<NAry>::Builder convertToNAry(const typename Shader<T>::Builder &otherAryBuilder) {
         return [otherAryBuilder]() {
