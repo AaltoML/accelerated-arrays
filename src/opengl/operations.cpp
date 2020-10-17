@@ -195,8 +195,6 @@ Shader<NAry>::Builder channelwiseAffine(const ChannelwiseAffineSpec &spec, const
 Shader<Unary>::Builder fixedConvolution2D(const FixedConvolution2DSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
     aa_assert(!spec.kernel.empty());
 
-    log_warn("TODO: convolution border property is not handled yet");
-
     std::string fragmentShaderBody;
     {
         std::ostringstream oss;
