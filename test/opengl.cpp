@@ -191,7 +191,9 @@ TEST_CASE( "GLFW draw to window", "[accelerated-arrays-opengl]" ) {
     GLFWwindow *wnd = nullptr;
 
     const int width = 320, height = 200;
-    auto processor = opengl::createGLFWWindow(320, 200, "pink window", (void**)&wnd);
+    // TODO: won't work on Mac... refactor to use SYNC
+    auto processor = opengl::createGLFWWindow(320, 200, "pink window",
+        opengl::GLFWProcessorMode::ASYNC, (void**)&wnd);
     auto factory = opengl::Image::createFactory(*processor);
     auto ops = opengl::operations::createFactory(*processor);
 

@@ -98,6 +98,10 @@ if (ANDROID)
   target_compile_definitions(${LIBNAME} PRIVATE "-DACCELERATED_ARRAYS_MAX_COMPATIBILITY_READS")
 endif()
 
+if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  target_compile_definitions(${LIBNAME} PRIVATE "-DACCELERATED_ARRAYS_SYNC_GLFW")
+endif()
+
 # Note, also consider using these flags
 # ACCELERATED_ARRAYS_DODGY_READS
 # ACCELERATED_ARRAYS_MAX_COMPATIBILITY_READS

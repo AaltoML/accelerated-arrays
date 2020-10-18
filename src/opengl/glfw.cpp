@@ -7,16 +7,41 @@ namespace accelerated {
 namespace opengl {
 namespace {
 struct GLFWProcessor : Processor {
-    std::unique_ptr<Processor> thread;
+    std::unique_ptr<Processor> processor;
     GLFWwindow *window = nullptr;
 
-    GLFWProcessor(bool visible, int w, int h, const char *t, GLFWwindow **windowOut) : thread(Processor::createThreadPool(1)) {
+    GLFWProcessor(bool visible, int w, int h, const char *t, GLFWwindow **windowOut, GLFWProcessorMode mode) {
+        if (mode == GLFWProcessorMode::AUTO) {
+        #ifdef ACCELERATED_ARRAYS_SYNC_GLFW
+            log_warn("Falling back to syncrhonous GLFW processor");
+            mode = GLFWProcessorMode::SYNC;
+        #else
+            mode = GLFWProcessorMode::ASYNC;
+        #endif
+        }
+
+        switch (mode) {
+        case GLFWProcessorMode::SYNC:
+            log_debug("Initializing syncrhonous GLFW processor");
+            processor = Processor::createInstant();
+            break;
+        case GLFWProcessorMode::ASYNC:
+        #ifdef ACCELERATED_ARRAYS_SYNC_GLFW
+            aa_assert(false && "GLFWProcessorMode::ASYNC is not supported on your system");
+        #endif
+            log_debug("Initializing GLFW processor with its own thread");
+            processor = Processor::createThreadPool(1);
+            break;
+        default:
+            aa_assert(false);
+        }
+
         std::string title = "accelerated-arrays GL window";
         if (t != nullptr) {
             title = t;
         }
 
-        thread->enqueue([this, w, h, title, visible, windowOut]() {
+        processor->enqueue([this, w, h, title, visible, windowOut]() {
             if (glfwInit()) {
                 if (!visible) glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
                 window = glfwCreateWindow(w, h, title.c_str(), NULL, NULL);
@@ -31,7 +56,7 @@ struct GLFWProcessor : Processor {
     }
 
     ~GLFWProcessor() {
-        thread->enqueue([this]() {
+        processor->enqueue([this]() {
             if (window) {
                 glfwDestroyWindow(window);
                 glfwTerminate();
@@ -41,7 +66,7 @@ struct GLFWProcessor : Processor {
     }
 
     Future enqueue(const std::function<void()> &op) final {
-        return thread->enqueue([this, op]() {
+        return processor->enqueue([this, op]() {
             aa_assert(window);
             // log_debug("op in GL thread");
             // not which of these are really required. It might be slow
@@ -52,14 +77,17 @@ struct GLFWProcessor : Processor {
         });
     }
 };
+
+constexpr int DEFAULT_W = 640;
+constexpr int DEFAULT_H = 480;
 }
 
-std::unique_ptr<Processor> createGLFWProcessor() {
-    return std::unique_ptr<Processor>(new GLFWProcessor(false, 640, 480, nullptr, nullptr));
+std::unique_ptr<Processor> createGLFWProcessor(GLFWProcessorMode mode) {
+    return std::unique_ptr<Processor>(new GLFWProcessor(false, DEFAULT_W, DEFAULT_H, nullptr, nullptr, mode));
 }
 
-std::unique_ptr<Processor> createGLFWWindow(int w, int h, const char *title, void **window) {
-    return std::unique_ptr<Processor>(new GLFWProcessor(true, w, h, title, reinterpret_cast<GLFWwindow**>(window)));
+std::unique_ptr<Processor> createGLFWWindow(int w, int h, const char *title, GLFWProcessorMode mode, void **window) {
+    return std::unique_ptr<Processor>(new GLFWProcessor(true, w, h, title, reinterpret_cast<GLFWwindow**>(window), mode));
 }
 }
 }

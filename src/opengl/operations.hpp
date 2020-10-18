@@ -60,13 +60,26 @@ private:
 std::unique_ptr<Factory> createFactory(Processor &processor);
 }
 
+enum class GLFWProcessorMode {
+    /** Prefer ASYNC but fall back to SYNC if that's not available (on Mac) */
+    AUTO,
+    /** Execute all (OpenGL) commands instantly on the calling thread */
+    SYNC,
+    /** Execute all (OpenGL) commands on their own worker thread */
+    ASYNC
+};
+
 /**
- * Create a processor with its own thread, (hidden) window and GL context
- * using the GLFW library. Not available on mobile, where one should use
+ * Create a processor with a (hidden) window and GL context using the GLFW
+ * library. Not available on mobile, where one should use
  * Processor::createQueue() and call its processAll method in the existing
  * OpenGL thread / onDraw function manually.
+ *
+ * By default, executes the commands in its own worker thread, but may
+ * fall back to executing them instantly if that's not possible (on Mac),
+ * see GLFWProcessorMode for more details.
  */
-std::unique_ptr<Processor> createGLFWProcessor();
+std::unique_ptr<Processor> createGLFWProcessor(GLFWProcessorMode mode = GLFWProcessorMode::AUTO);
 
 
 /**
@@ -79,6 +92,10 @@ std::unique_ptr<Processor> createGLFWProcessor();
  * You may also want to use the optionally outputted GLFWwindow pointer
  * to check if the user has requested to close the window etc.
  */
-std::unique_ptr<Processor> createGLFWWindow(int w, int h, const char *title = nullptr, void **glfwWindowOutput = nullptr);
+std::unique_ptr<Processor> createGLFWWindow(int w, int h,
+    const char *title = nullptr,
+    GLFWProcessorMode mode = GLFWProcessorMode::AUTO,
+    void **glfwWindowOutput = nullptr);
+
 }
 }
