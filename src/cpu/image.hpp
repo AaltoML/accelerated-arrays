@@ -77,6 +77,10 @@ public:
     double getFloat(int x, int y) const;
     double getFloat(int x, int y, Border border) const;
 
+    // adapters for copying to/from possibly non-CPU images
+    virtual Future copyFrom(::accelerated::Image &other) = 0;
+    virtual Future copyTo(::accelerated::Image &other) const = 0;
+
     /** Get pointer to raw data, use sparingly */
     virtual std::uint8_t *getDataRaw() = 0;
 

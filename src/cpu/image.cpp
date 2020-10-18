@@ -9,6 +9,14 @@ private:
         return (y * width + x) * channels * bytesPerChannel();
     }
 
+    bool isCopyCompatible(::accelerated::Image &other) const {
+        // TODO: fixed point vs integer types would work OK in direct copy too
+        return other.channels == channels &&
+            other.dataType == dataType &&
+            other.width == width &&
+            other.height == height;
+    }
+
 protected:
     std::uint8_t *data = nullptr;
 
@@ -45,6 +53,16 @@ public:
     Future writeRaw(const std::uint8_t *inputData) final {
         std::memcpy(data, inputData, size());
         return Future::instantlyResolved();
+    }
+
+    Future copyFrom(::accelerated::Image &other) final {
+        aa_assert(isCopyCompatible(other));
+        return other.readRaw(data);
+    }
+
+    Future copyTo(::accelerated::Image &other) const final {
+        aa_assert(isCopyCompatible(other));
+        return other.writeRaw(data);
     }
 
     std::uint8_t *getDataRaw() final {

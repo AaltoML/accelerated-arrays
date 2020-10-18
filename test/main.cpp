@@ -72,6 +72,15 @@ TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
         REQUIRE(imgRef->get<std::int16_t>(2, 1, 1) != 12);
         REQUIRE(imgRef->get<std::int16_t>(0, 0, 1) == 2);
     }
+
+    // test copyTo
+    {
+        auto &cpuImg = cpu::Image::castFrom(*image);
+        auto cpy = factory->createLike(*image);
+        cpuImg.copyTo(*cpy);
+        const auto &cpuImgCpy = cpu::Image::castFrom(*image);
+        REQUIRE(cpuImg.get<std::int16_t>(2, 1, 1) == cpuImgCpy.get<std::int16_t>(2, 1, 1));
+    }
 }
 
 TEST_CASE( "Fixed point images", "[accelerated-arrays]" ) {

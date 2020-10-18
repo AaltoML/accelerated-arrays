@@ -88,7 +88,7 @@ TEST_CASE( "Convolution 2D", "[accelerated-arrays]" ) {
 }
 
 
-TEST_CASE( "Affine pixel ops", "[accelerated-arrays]" ) {
+TEST_CASE( "Affine pixel ops & copyFrom", "[accelerated-arrays]" ) {
 
     std::vector< ProcessorItem > items;
     items.emplace_back(Processor::createInstant());
@@ -136,18 +136,11 @@ TEST_CASE( "Affine pixel ops", "[accelerated-arrays]" ) {
 
         operations::callUnary(chanAffine, *intermediaryImage, *outImage).wait();
 
-        auto outData = inData;
-        outData.clear();
-        outData.resize(outImage->numberOfScalars(), 123);
-        outImage->readRawFixedPoint(outData).wait();
-        // for (auto &el : outData) std::cout << "out-data:" << int(el) << std::endl;
-
-        // just for checking the output
+        // Testing copyFrom
         auto factory = cpu::Image::createFactory();
         auto checkImage = factory->createLike(*outImage);
-        checkImage->writeRawFixedPoint(outData).wait();
-
-        const auto &outCpu = cpu::Image::castFrom(*checkImage);
+        auto &outCpu = cpu::Image::castFrom(*checkImage);
+        outCpu.copyFrom(*outImage).wait();
 
         int outVal = int(outCpu.get<Type>(1, 0, 0).value);
 
