@@ -32,6 +32,7 @@ install(FILES
   src/image.hpp
   src/standard_ops.hpp
   src/log_and_assert.hpp # TODO: should not be exposed
+  src/opencv_adapter.hpp # note: optional, no hard depdendency to OpenCV
   DESTINATION include/${LIBNAME}
   COMPONENT Headers)
 

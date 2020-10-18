@@ -105,10 +105,10 @@ public:
         return createReference(w, h, Chan, getType<T>(), reinterpret_cast<std::uint8_t*>(data));
     }
 
+    static ImageTypeSpec getSpec(int channels, DataType dtype);
+
 protected:
     bool applyBorder(int &x, int &y, Border border) const;
-
-    static ImageTypeSpec getSpec(int channels, DataType dtype);
 
     Image(int w, int h, int channels, DataType dtype);
 
