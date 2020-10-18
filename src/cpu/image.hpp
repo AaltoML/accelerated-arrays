@@ -77,12 +77,29 @@ public:
     double getFloat(int x, int y) const;
     double getFloat(int x, int y, Border border) const;
 
+    /** Get pointer to raw data, use sparingly */
+    virtual std::uint8_t *getDataRaw() = 0;
+
+    /** Same as getRawData but checks that the type is what you expect */
+    template <class T> T *getData() {
+        checkType<T>();
+        return reinterpret_cast<T*>(getDataRaw());
+    }
+
     static Image &castFrom(::accelerated::Image &image) {
         aa_assert(image.storageType == StorageType::CPU);
         return reinterpret_cast<Image&>(image);
     }
 
-    static std::unique_ptr<Factory> createFactory(Processor &processor);
+    static std::unique_ptr<Factory> createFactory();
+
+    /** Create a cpu::Image which as a reference to existing data */
+    static std::unique_ptr<Image> createReference(
+        int w, int h, int channels, DataType dtype, std::uint8_t *data);
+
+    template <class T, int Chan> static std::unique_ptr<Image> createReference(int w, int h, T* data) {
+        return createReference(w, h, Chan, getType<T>(), reinterpret_cast<std::uint8_t*>(data));
+    }
 
 protected:
     bool applyBorder(int &x, int &y, Border border) const;

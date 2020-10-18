@@ -19,7 +19,7 @@ struct ProcessorItem {
 
     ProcessorItem() {}
     ProcessorItem(std::unique_ptr<Processor> p) : processor(std::move(p)) {
-        img = cpu::Image::createFactory(*processor);
+        img = cpu::Image::createFactory();
         ops = cpu::operations::createFactory(*processor);
     }
 };
@@ -78,8 +78,7 @@ TEST_CASE( "Convolution 2D", "[accelerated-arrays]" ) {
         // for (auto &el : outData) std::cout << "out-data:" << int(el) << std::endl;
 
         // just for checking the output
-        auto checkerProc = Processor::createInstant();
-        auto factory = cpu::Image::createFactory(*checkerProc);
+        auto factory = cpu::Image::createFactory();
         auto checkImage = factory->create<Type, 2>(3, 4);
         checkImage->writeRawFixedPoint(outData).wait();
 
@@ -144,8 +143,7 @@ TEST_CASE( "Affine pixel ops", "[accelerated-arrays]" ) {
         // for (auto &el : outData) std::cout << "out-data:" << int(el) << std::endl;
 
         // just for checking the output
-        auto checkerProc = Processor::createInstant();
-        auto factory = cpu::Image::createFactory(*checkerProc);
+        auto factory = cpu::Image::createFactory();
         auto checkImage = factory->createLike(*outImage);
         checkImage->writeRawFixedPoint(outData).wait();
 

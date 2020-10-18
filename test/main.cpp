@@ -14,85 +14,69 @@
 TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
     using namespace accelerated;
 
-    std::vector< std::unique_ptr<Processor> > processors;
-    processors.push_back(Processor::createQueue());
-    processors.push_back(Processor::createInstant());
-    processors.push_back(Processor::createThreadPool(1));
-    processors.push_back(Processor::createThreadPool(5));
+    auto factory = cpu::Image::createFactory();
+    auto image = factory->create<std::int16_t, 2>(3, 4);
 
-    for (std::size_t i = 0; i < processors.size(); ++i) {
-        auto processor = std::move(processors.at(i));
-        Queue *queue = nullptr;
-        if (i == 0) {
-            queue = reinterpret_cast<Queue*>(processor.get());
-        }
+    REQUIRE(image->width == 3);
+    REQUIRE(image->height == 4);
+    REQUIRE(image->channels == 2);
+    REQUIRE(image->storageType == ImageTypeSpec::StorageType::CPU);
+    REQUIRE(image->size() == 3*4*2*2);
+    REQUIRE(image->numberOfPixels() == 3*4);
+    REQUIRE(image->bytesPerPixel() == 2*2);
 
-        auto factory = cpu::Image::createFactory(*processor);
-        auto image = factory->create<std::int16_t, 2>(3, 4);
+    std::vector<std::int16_t> in = {
+        1,2,  3,4,  5,0,
+        0,0,  9,0,  0,6,
+        7,0,  0,0,  0,0,
+        0,0,  0,8,  0,9
+    };
 
-        auto waitFor = [queue](Future f) {
-            if (queue) queue->processAll();
-            f.wait();
-        };
+    image->write(in).wait();
 
-        REQUIRE(image->width == 3);
-        REQUIRE(image->height == 4);
-        REQUIRE(image->channels == 2);
-        REQUIRE(image->storageType == ImageTypeSpec::StorageType::CPU);
-        REQUIRE(image->size() == 3*4*2*2);
-        REQUIRE(image->numberOfPixels() == 3*4);
-        REQUIRE(image->bytesPerPixel() == 2*2);
+    {
+        const auto &cpuImg = cpu::Image::castFrom(*image);
+        REQUIRE(cpuImg.get<std::int16_t>(2, 0, 0) == 5);
+        REQUIRE(cpuImg.get<std::int16_t>(2, 1, 1) == 6);
+        REQUIRE(std::fabs(cpuImg.getFloat(2, 1, 1) - 6) < 1e-10);
+        REQUIRE(cpuImg.get<std::int16_t>(3, 0, 0, Image::Border::CLAMP) == 5);
+        REQUIRE(cpuImg.get<std::int16_t>(3, 0, 0, Image::Border::MIRROR) == 3);
+        REQUIRE(cpuImg.get<std::int16_t>(3, 0, 0, Image::Border::ZERO) == 0);
+        REQUIRE(cpuImg.get<std::int16_t>(3, 0, 0, Image::Border::REPEAT) == 1);
+        REQUIRE(std::fabs(cpuImg.getFloat(3, 0, 0, Image::Border::CLAMP) - 5) < 1e-10);
+        auto pix = cpuImg.get<std::int16_t, 2>(1, 0);
+        REQUIRE(pix.size() == 2);
+        REQUIRE(pix.at(0) ==  3);
+        REQUIRE(pix.at(1) ==  4);
+    }
 
-        std::vector<std::int16_t> in = {
-            1,2,  3,4,  5,0,
-            0,0,  9,0,  0,6,
-            7,0,  0,0,  0,0,
-            0,0,  0,8,  0,9
-        };
+    {
+        std::vector<std::int16_t> out;
+        image->read(out).wait();
 
-        waitFor(image->write(in));
+        REQUIRE(in.size() == out.size());
+        REQUIRE(in.size() == 2*3*4);
+        for (std::size_t i = 0; i < in.size(); ++i)
+            REQUIRE(in[i] == out[i]);
+    }
 
-        {
-            const auto &cpuImg = cpu::Image::castFrom(*image);
-            REQUIRE(cpuImg.get<std::int16_t>(2, 0, 0) == 5);
-            REQUIRE(cpuImg.get<std::int16_t>(2, 1, 1) == 6);
-            REQUIRE(std::fabs(cpuImg.getFloat(2, 1, 1) - 6) < 1e-10);
-            REQUIRE(cpuImg.get<std::int16_t>(3, 0, 0, Image::Border::CLAMP) == 5);
-            REQUIRE(cpuImg.get<std::int16_t>(3, 0, 0, Image::Border::MIRROR) == 3);
-            REQUIRE(cpuImg.get<std::int16_t>(3, 0, 0, Image::Border::ZERO) == 0);
-            REQUIRE(cpuImg.get<std::int16_t>(3, 0, 0, Image::Border::REPEAT) == 1);
-            REQUIRE(std::fabs(cpuImg.getFloat(3, 0, 0, Image::Border::CLAMP) - 5) < 1e-10);
-            auto pix = cpuImg.get<std::int16_t, 2>(1, 0);
-            REQUIRE(pix.size() == 2);
-            REQUIRE(pix.at(0) ==  3);
-            REQUIRE(pix.at(1) ==  4);
-        }
+    {
+        auto &cpuImg = cpu::Image::castFrom(*image);
+        auto imgRef = cpu::Image::createReference<std::int16_t, 2>(image->width, image->height, cpuImg.getData<std::int16_t>());
 
-        {
-            std::vector<std::int16_t> out;
-            waitFor(image->read(out));
-
-            REQUIRE(in.size() == out.size());
-            REQUIRE(in.size() == 2*3*4);
-            for (std::size_t i = 0; i < in.size(); ++i)
-                REQUIRE(in[i] == out[i]);
-        }
-
-        {
-            auto &cpuImg = cpu::Image::castFrom(*image);
-            cpuImg.set<std::int16_t>(2, 1, 1, 12);
-            REQUIRE(cpuImg.get<std::int16_t>(2, 1, 1) == 12);
-            cpuImg.setFloat(2, 1, 1, 13.001);
-            REQUIRE(std::fabs(cpuImg.getFloat(2, 1, 1) - 13.001) < 0.001);
-        }
+        cpuImg.set<std::int16_t>(2, 1, 1, 12);
+        REQUIRE(cpuImg.get<std::int16_t>(2, 1, 1) == 12);
+        REQUIRE(imgRef->get<std::int16_t>(2, 1, 1) == 12);
+        cpuImg.setFloat(2, 1, 1, 13.001);
+        REQUIRE(std::fabs(cpuImg.getFloat(2, 1, 1) - 13.001) < 0.001);
+        REQUIRE(imgRef->get<std::int16_t>(2, 1, 1) != 12);
+        REQUIRE(imgRef->get<std::int16_t>(0, 0, 1) == 2);
     }
 }
 
 TEST_CASE( "Fixed point images", "[accelerated-arrays]" ) {
     using namespace accelerated;
-
-    auto processor = Processor::createInstant();
-    auto factory = cpu::Image::createFactory(*processor);
+    auto factory = cpu::Image::createFactory();
 
     typedef FixedPoint<std::int16_t> Type;
 

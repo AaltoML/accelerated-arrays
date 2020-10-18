@@ -3,16 +3,15 @@
 namespace accelerated {
 namespace cpu {
 namespace {
-class ImageImplementation final : public Image {
+class ImageBase : public Image {
 private:
-    std::vector<std::uint8_t> data;
-    Processor &processor;
-
     inline int index(int x, int y) const {
         return (y * width + x) * channels * bytesPerChannel();
     }
 
 protected:
+    std::uint8_t *data = nullptr;
+
     void get(int x, int y, std::uint8_t *targetArray) const final {
         const auto bpc = bytesPerChannel();
         for (int i = 0; i < channels; ++i) get(x, y, i, targetArray + i * bpc);
@@ -39,32 +38,50 @@ protected:
 
 public:
     Future readRaw(std::uint8_t *outputData) final {
-        return processor.enqueue([this, outputData]() {
-            std::memcpy(outputData, data.data(), size());
-        });
+        std::memcpy(outputData, data, size());
+        return Future::instantlyResolved();
     }
 
     Future writeRaw(const std::uint8_t *inputData) final {
-        return processor.enqueue([this, inputData]() {
-            std::memcpy(data.data(), inputData, size());
-        });
+        std::memcpy(data, inputData, size());
+        return Future::instantlyResolved();
     }
 
-    ImageImplementation(int w, int h, int channels, DataType dtype, Processor &p) :
-        Image(w, h, channels, dtype), processor(p)
+    std::uint8_t *getDataRaw() final {
+        return data;
+    }
+
+    ImageBase(int w, int h, int channels, DataType dtype) :
+        Image(w, h, channels, dtype)
+    {}
+};
+
+class ImageWithData final : public ImageBase {
+private:
+    std::vector<std::uint8_t> dataVec;
+
+public:
+    ImageWithData(int w, int h, int channels, DataType dtype) :
+        ImageBase(w, h, channels, dtype)
     {
-        data.resize(size());
+        dataVec.resize(size());
+        data = dataVec.data();
+    }
+};
+
+class ImageReference final : public ImageBase {
+public:
+    ImageReference(int w, int h, int channels, DataType dtype, std::uint8_t *extData) :
+        ImageBase(w, h, channels, dtype)
+    {
+        data = extData;
     }
 };
 
 class ImageFactory final : public Image::Factory {
-private:
-    Processor &processor;
 public:
-    ImageFactory(Processor &p) : processor(p) {}
-
     std::unique_ptr<::accelerated::Image> create(int w, int h, int channels, ImageTypeSpec::DataType dtype) final {
-        return std::unique_ptr<::accelerated::Image>(new ImageImplementation(w, h, channels, dtype, processor));
+        return std::unique_ptr<::accelerated::Image>(new ImageWithData(w, h, channels, dtype));
     }
 };
 
@@ -148,8 +165,12 @@ ImageTypeSpec Image::getSpec(int channels, DataType dtype) {
     };
 }
 
-std::unique_ptr<Image::Factory> Image::createFactory(Processor &p) {
-    return std::unique_ptr<Image::Factory>(new ImageFactory(p));
+std::unique_ptr<Image::Factory> Image::createFactory() {
+    return std::unique_ptr<Image::Factory>(new ImageFactory());
+}
+
+std::unique_ptr<Image> Image::createReference(int w, int h, int channels, DataType dtype, std::uint8_t *data) {
+    return std::unique_ptr<Image>(new ImageReference(w, h, channels, dtype, data));
 }
 
 Image::Image(int w, int h, int ch, DataType dtype) : ::accelerated::Image(w, h, getSpec(ch, dtype)) {}
