@@ -27,11 +27,26 @@ struct opencv {
         return cpu::Image::createReference(m.cols, m.rows, spec.channels, spec.dataType, m.data);
     }
 
+    static cv::Mat emptyLike(const Image &img) {
+        cv::Mat m(img.height, img.width, convertSpec(img));
+        return m;
+    }
+
+    static std::unique_ptr<cpu::Image> emptyLike(const cv::Mat &mat, bool preferFixedPoint = false) {
+        const auto spec = convertSpec(mat, preferFixedPoint);
+        return std::unique_ptr<cpu::Image>(reinterpret_cast<cpu::Image*>(cpu::Image::createFactory()->create(
+            mat.cols,
+            mat.rows,
+            spec.channels,
+            spec.dataType).release()));
+    }
+
     static Future copy(const cv::Mat &from, Image &to) {
         return ref(from)->copyTo(to);
     }
 
     static Future copy(Image &from, cv::Mat &to) {
+        if (to.empty()) to = emptyLike(from);
         return ref(to)->copyFrom(from);
     }
 

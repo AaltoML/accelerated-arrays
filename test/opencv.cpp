@@ -21,6 +21,12 @@ TEST_CASE( "OpenCV adapter (from)", "[accelerated-arrays]" ) {
         auto other = opencv::ref(testMat, true);
         REQUIRE(other->get<FixedPoint<std::uint8_t>>(1, 2).value == 4);
     }
+
+    {
+        auto img = opencv::emptyLike(testMat);
+        opencv::copy(testMat, *img);
+        REQUIRE(img->get<std::uint8_t>(2, 1) == 3);
+    }
 }
 
 TEST_CASE( "OpenCV adapter (to)", "[accelerated-arrays]" ) {
@@ -35,4 +41,8 @@ TEST_CASE( "OpenCV adapter (to)", "[accelerated-arrays]" ) {
 
     cpuImg.set<float>(4, 5, 1, 123.4);
     REQUIRE(std::fabs(mat.at<cv::Vec2f>(5, 4)(1) - 123.4) < 1e-5);
+
+    cv::Mat copyMat;
+    opencv::copy(cpuImg, copyMat);
+    REQUIRE(std::fabs(copyMat.at<cv::Vec2f>(5, 4)(1) - 123.4) < 1e-5);
 }
