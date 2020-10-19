@@ -101,6 +101,10 @@ public:
     std::unique_ptr<::accelerated::Image> create(int w, int h, int channels, ImageTypeSpec::DataType dtype) final {
         return std::unique_ptr<::accelerated::Image>(new ImageWithData(w, h, channels, dtype));
     }
+
+    ImageTypeSpec getSpec(int channels, ImageTypeSpec::DataType dtype) final {
+        return Image::getSpec(channels, dtype);
+    }
 };
 
 inline bool applyBorder1D(int &i, int size, Image::Border border) {

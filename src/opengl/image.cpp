@@ -122,6 +122,10 @@ public:
     std::unique_ptr<::accelerated::Image> create(int w, int h, int channels, ImageTypeSpec::DataType dtype) final;
     std::unique_ptr<Image> wrapFrameBuffer(int frameBufferId, int w, int h, const ImageTypeSpec &spec) final;
     std::unique_ptr<Image> wrapScreen(int w, int h) final;
+
+    ImageTypeSpec getSpec(int channels, ImageTypeSpec::DataType dtype) final {
+        return Image::getSpec(channels, dtype);
+    }
 };
 
 class FrameBufferManager::Reference : public Image {

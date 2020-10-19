@@ -1,7 +1,7 @@
 #include <sstream>
 
 #include "adapters.hpp"
-#include "../image.hpp"
+#include "image.hpp"
 
 namespace accelerated {
 namespace opengl {
@@ -273,11 +273,10 @@ int getBindType(const ImageTypeSpec &spec) {
 
 // assumed screen spec
 std::unique_ptr<ImageTypeSpec> getScreenImageTypeSpec() {
-    return std::unique_ptr<ImageTypeSpec>(new ImageTypeSpec {
+    return std::unique_ptr<ImageTypeSpec>(new ImageTypeSpec(Image::getSpec(
         4, // Note: could be 3 in some circumstances... or even something else
-        ImageTypeSpec::DataType::UFIXED8,
-        ImageTypeSpec::StorageType::GPU_OPENGL
-    });
+        ImageTypeSpec::DataType::UFIXED8
+    )));
 }
 
 }

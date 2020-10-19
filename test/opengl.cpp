@@ -53,12 +53,15 @@ TEST_CASE( "fixed-point image", "[accelerated-arrays-opengl]" ) {
     auto processor = opengl::createGLFWProcessor();
     auto factory = opengl::Image::createFactory(*processor);
 
+    REQUIRE(factory->getSpec<std::uint8_t, 2>().storageType == ImageTypeSpec::StorageType::GPU_OPENGL);
+
     typedef std::uint8_t IntType;
     typedef FixedPoint<IntType> Type;
     REQUIRE(sizeof(Type) == 1);
 
     // note: also testing read adapters: 2-channel image cannot be read directly
     auto image = factory->create<Type, 2>(19, 17); // also weird dimensions
+    REQUIRE(image->storageType == ImageTypeSpec::StorageType::GPU_OPENGL);
 
     std::vector<IntType> inBuf, outBuf;
     for (std::size_t i = 0; i < image->numberOfScalars(); ++i)

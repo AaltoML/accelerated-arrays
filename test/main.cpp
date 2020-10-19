@@ -17,6 +17,13 @@ TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
     auto factory = cpu::Image::createFactory();
     auto image = factory->create<std::int16_t, 2>(3, 4);
 
+    {
+        auto testSpec = factory->getSpec<std::uint8_t, 2>();
+        REQUIRE(testSpec.channels == 2);
+        REQUIRE(testSpec.dataType == ImageTypeSpec::DataType::UINT8);
+        REQUIRE(testSpec.storageType == ImageTypeSpec::StorageType::CPU);
+    }
+
     REQUIRE(image->width == 3);
     REQUIRE(image->height == 4);
     REQUIRE(image->channels == 2);

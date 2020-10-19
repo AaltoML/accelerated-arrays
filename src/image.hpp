@@ -112,8 +112,15 @@ struct Image : ImageTypeSpec {
     public:
         virtual ~Factory();
         template <class T, int Channels> std::unique_ptr<Image> create(int w, int h);
+        template <class T, int Channels> ImageTypeSpec getSpec();
+        /**
+         * Create a new image with the same ImageTypeSpec as the given
+         * image, except for the StorageType, which is specific to this
+         * factory.
+         */
         std::unique_ptr<Image> createLike(const Image &image);
         virtual std::unique_ptr<Image> create(int w, int h, int channels, DataType dtype) = 0;
+        virtual ImageTypeSpec getSpec(int channels, DataType dtype) = 0;
     };
 
     typedef std::function< Future(std::vector<Image*> &inputs, Image &output) > Function;
@@ -215,15 +222,16 @@ struct Image : ImageTypeSpec {
     x(FixedPoint<std::int32_t>, ImageTypeSpec::DataType::SFIXED32)
 
 #define Y(dtype, n) \
-    template <> std::unique_ptr<Image> Image::Factory::create<dtype, n>(int w, int h)
+    template <> std::unique_ptr<Image> Image::Factory::create<dtype, n>(int w, int h); \
+    template <> ImageTypeSpec Image::Factory::getSpec<dtype, n>();
 #define X(dtype) \
     template <> void ImageTypeSpec::checkType<dtype>() const; \
     template <> bool ImageTypeSpec::isType<dtype>() const; \
     template <> ImageTypeSpec::DataType ImageTypeSpec::getType<dtype>(); \
-    Y(dtype, 1); \
-    Y(dtype, 2); \
-    Y(dtype, 3); \
-    Y(dtype, 4);
+    Y(dtype, 1) \
+    Y(dtype, 2) \
+    Y(dtype, 3) \
+    Y(dtype, 4)
 ACCELERATED_IMAGE_FOR_EACH_TYPE(X)
 #undef X
 #undef Y

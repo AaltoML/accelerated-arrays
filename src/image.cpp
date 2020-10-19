@@ -14,7 +14,9 @@ std::unique_ptr<Image> Image::Factory::createLike(const Image &image) {
 
 #define Y(dtype, name, n) \
     template <> std::unique_ptr<Image> Image::Factory::create<dtype, n>(int w, int h) \
-    { return create(w, h, n, name); }
+    { return create(w, h, n, name); } \
+    template <> ImageTypeSpec Image::Factory::getSpec<dtype, n>() \
+    { return getSpec(n, name); }
 #define X(dtype, name) \
     template <> bool ImageTypeSpec::isType<dtype>() const { return dataType == name; } \
     template <> void ImageTypeSpec::checkType<dtype>() const { aa_assert(isType<dtype>()); } \

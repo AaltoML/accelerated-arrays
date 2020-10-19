@@ -29,11 +29,7 @@ template <class T> std::string wrapToVec(const std::vector<T> &values, const Ima
 }
 
 template <class T> std::string wrapToFloatVec(const std::vector<T> &values) {
-    return wrapToVec(values, ImageTypeSpec {
-        int(values.size()),
-        ImageTypeSpec::DataType::FLOAT32,
-        ImageTypeSpec::StorageType::GPU_OPENGL // dummy value
-    });
+    return wrapToVec(values, Image::getSpec(int(values.size()), ImageTypeSpec::DataType::FLOAT32));
 }
 
 std::string swizzleSubset(std::size_t n) {
