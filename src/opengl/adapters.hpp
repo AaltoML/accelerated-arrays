@@ -4,14 +4,19 @@
 #include <vector>
 
 #ifdef ACCELERATED_ARRAYS_USE_OPENGL_ES
-#include <GLES3/gl3.h>
-#include <GLES3/gl3ext.h>
-// NDK bug workaround: https://stackoverflow.com/a/31025110
-#define __gl2_h_
-#include <GLES2/gl2ext.h>
+    #include <GLES3/gl3.h>
+    #include <GLES3/gl3ext.h>
+    // NDK bug workaround: https://stackoverflow.com/a/31025110
+    #define __gl2_h_
+    #include <GLES2/gl2ext.h>
 #else
-#define GL_GLEXT_PROTOTYPES // again just something from a random forum :(
-#include <GL/gl.h>
+    #define GL_GLEXT_PROTOTYPES // again just something from a random forum :(
+    #ifdef __APPLE__
+        #include <OpenGL/gl3.h>
+        #include <OpenGL/gl3ext.h>
+    #else
+        #include <GL/gl.h>
+    #endif // __APPLE__
 #endif
 
 #include "../image.hpp"

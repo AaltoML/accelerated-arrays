@@ -1,5 +1,9 @@
 #include "operations.hpp"
 #include "adapters.hpp"
+
+#if defined(__APPLE__)
+#define GLFW_INCLUDE_GLCOREARB // Select gl3.h within glfw3.h
+#endif
 #include <GLFW/glfw3.h>
 #include <string>
 
@@ -44,6 +48,15 @@ struct GLFWProcessor : Processor {
         processor->enqueue([this, w, h, title, visible, windowOut]() {
             if (glfwInit()) {
                 if (!visible) glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+
+                #ifdef __APPLE__
+                // We need to explicitly ask for specific version context on OS X
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+                glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+                glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+                #endif
+
                 window = glfwCreateWindow(w, h, title.c_str(), NULL, NULL);
                 if (!window) glfwTerminate();
                 log_debug("GLFWProcessor initialized window");

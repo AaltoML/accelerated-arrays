@@ -53,6 +53,13 @@ if (WITH_OPENGL)
     find_package(OpenGL REQUIRED)
   endif()
 
+  if(APPLE)
+    message("Silencing Apple OpenGL API deprecation warnings")
+    add_definitions(-DGL_SILENCE_DEPRECATION)
+    list(APPEND LIBRARY_DEPS ${OPENGL_LIBRARIES})
+    find_package(glfw3 REQUIRED)
+  endif()
+
   list(APPEND SRC_FILES
     src/opengl/adapters.cpp
     src/opengl/image.cpp
@@ -82,7 +89,9 @@ if (WITH_OPENGL)
       list(APPEND LIBRARY_DEPS GLESv2)
     endif()
   else()
-    list(APPEND LIBRARY_DEPS GL)
+    if (NOT APPLE)
+      list(APPEND LIBRARY_DEPS GL)
+    endif()
   endif()
 endif()
 

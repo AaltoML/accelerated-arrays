@@ -398,13 +398,18 @@ class GlslFragmentShaderImplementation : public GlslFragmentShader {
 private:
     GLuint vertexBuffer = 0, vertexIndexBuffer = 0;
     GLuint aVertexData = 0;
+    GLuint vao = 0;
     GlslProgramImplementation program;
 
     static std::string vertexShaderSource(bool withTexCoord) {
         const char *varyingTexCoordName = "v_texCoord";
 
         std::ostringstream oss;
-        oss << "#version 300 es\n";
+        #ifdef __APPLE__
+            oss << "#version 330\n";
+        #else
+            oss << "#version 300 es\n";
+        #endif // __APPLE__
         oss << "precision highp float;\n";
         oss << "in vec4 a_vertexData;\n";
         if (withTexCoord) {
@@ -429,6 +434,8 @@ public:
     {
         glGenBuffers(1, &vertexBuffer);
         glGenBuffers(1, &vertexIndexBuffer);
+        glGenVertexArrays(1, &vao);
+        glBindVertexArray(vao);
 
         // Set up vertices
         float vertexData[] {
@@ -470,6 +477,7 @@ public:
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexIndexBuffer);
         CHECK_ERROR(__FUNCTION__);
 
+        glBindVertexArray(vao);
         glEnableVertexAttribArray(aVertexData);
         glVertexAttribPointer(aVertexData, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
         CHECK_ERROR(__FUNCTION__);
@@ -477,6 +485,7 @@ public:
 
     void unbind() final {
         glDisableVertexAttribArray(aVertexData);
+        glBindVertexArray(0);
         CHECK_ERROR(__FUNCTION__);
 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -627,7 +636,11 @@ private:
 
     std::string buildShaderSource(const char *fragmentMain, const std::vector<ImageTypeSpec> &inputs, const ImageTypeSpec &output) const {
         std::ostringstream oss;
-        oss << "#version 300 es\n";
+        #ifdef __APPLE__
+            oss << "#version 330\n";
+        #else
+            oss << "#version 300 es\n";
+        #endif // __APPLE__
         if (hasExternal(inputs)) {
             oss << "#extension GL_OES_EGL_image_external_essl3 : require\n";
         }
@@ -673,9 +686,14 @@ public:
                     aa_assert(false);
                 #endif
             #else
-                log_warn("SNORM render target requires GL bug fixes only found on Reddit. Use with caution.");
-                //constexpr int GL_CLAMP_FRAGMENT_COLOR = 0x891B;
-                glClampColor(GL_CLAMP_FRAGMENT_COLOR, GL_FALSE);
+                #if defined(__APPLE__)
+                    log_error("glClampColor() and GL_CLAMP_FRAGMENT_COLOR not supported on MacOS");
+                    assert(false);
+                #else
+                    log_warn("SNORM render target requires GL bug fixes only found on Reddit. Use with caution.");
+                    //constexpr int GL_CLAMP_FRAGMENT_COLOR = 0x891B;
+                    glClampColor(GL_CLAMP_FRAGMENT_COLOR, GL_FALSE);
+                #endif
             #endif
         }
     }
