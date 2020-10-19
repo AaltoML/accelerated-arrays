@@ -23,7 +23,7 @@ public:
          * change the stype argument to StorageType::GPU_OPENGL_EXTERNAL
          */
         template <class T, int Channels> std::unique_ptr<Image> wrapTexture(int textureId, int w, int h, StorageType stype = StorageType::GPU_OPENGL) {
-            return wrapTexture(textureId, w, h, getSpec(Channels, ImageTypeSpec::getType<T>(), stype));
+            return wrapTexture(textureId, w, h, Image::getSpec(Channels, ImageTypeSpec::getType<T>(), stype));
         }
 
         /**
@@ -37,7 +37,7 @@ public:
          * which you can create a separate read-only reference using wrapTexture.
          */
         template <class T, int Channels> std::unique_ptr<Image> wrapFrameBuffer(int fboId, int w, int h) {
-            return wrapFrameBuffer(fboId, w, h, getSpec(Channels, ImageTypeSpec::getType<T>()));
+            return wrapFrameBuffer(fboId, w, h, Image::getSpec(Channels, ImageTypeSpec::getType<T>()));
         }
 
         /**
