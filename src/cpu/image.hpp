@@ -68,14 +68,14 @@ public:
     // convert-to/from-double API: useful for avoiding template bloat
     // on the user side
 
-    void setFloat(int x, int y, int channel, double value);
-    double getFloat(int x, int y, int channel) const;
-    double getFloat(int x, int y, int channel, Border border) const;
+    void setFloat(int x, int y, int channel, float value);
+    float getFloat(int x, int y, int channel) const;
+    float getFloat(int x, int y, int channel, Border border) const;
 
     // single channel shorthands (double API)
-    void setFloat(int x, int y, double value);
-    double getFloat(int x, int y) const;
-    double getFloat(int x, int y, Border border) const;
+    void setFloat(int x, int y, float value);
+    float getFloat(int x, int y) const;
+    float getFloat(int x, int y, Border border) const;
 
     // adapters for copying to/from possibly non-CPU images
     virtual Future copyFrom(::accelerated::Image &other) = 0;

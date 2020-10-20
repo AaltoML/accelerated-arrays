@@ -55,10 +55,10 @@ Unary rescale(const RescaleSpec &spec, const ImageTypeSpec &inSpec, const ImageT
         aa_assert(input == inSpec);
         aa_assert(output == outSpec);
         forEachPixelAndChannel(output, [&spec, &input](Image &output, int x, int y, int c) {
-            double relX = x / double(output.width);
-            double relY = y / double(output.height);
-            double newX = (relX * spec.xScale + spec.xTranslation) * input.width;
-            double newY = (relY * spec.yScale + spec.yTranslation) * input.height;
+            float relX = x / float(output.width);
+            float relY = y / float(output.height);
+            float newX = (relX * spec.xScale + spec.xTranslation) * input.width;
+            float newY = (relY * spec.yScale + spec.yTranslation) * input.height;
 
             output.setFloat(x, y, c, interpolateFloat(input, newX, newY, c, spec.interpolation, spec.border));
         });
@@ -87,13 +87,13 @@ NAry pixelwiseAffineCombination(const PixelwiseAffineCombinationSpec &spec, cons
         aa_assert(output == outSpec);
         for (int i = 0; i < nInputs; ++i) aa_assert(*inputs[i] == inSpec);
         forEachPixelAndChannel(output, [&spec, inputs, nInputs](Image &output, int x, int y, int c) {
-            double v = spec.bias.empty() ? 0.0 : spec.bias.at(c);
+            float v = spec.bias.empty() ? 0.0 : spec.bias.at(c);
             for (int i = 0; i < nInputs; ++i) {
                 auto &input = *inputs[i];
                 const auto &matRow = spec.linear.at(i).at(c);
                 aa_assert(int(matRow.size()) == input.channels);
                 for (int inChan = 0; inChan < input.channels; ++inChan) {
-                    const double inValue = input.getFloat(x, y, inChan);
+                    const float inValue = input.getFloat(x, y, inChan);
                     v += matRow.at(inChan) * inValue;
                 }
             }
@@ -109,7 +109,7 @@ Unary channelwiseAffine(const ChannelwiseAffineSpec &spec, const ImageTypeSpec &
         aa_assert(input == inSpec);
         aa_assert(output == outSpec);
         forEachPixelAndChannel(output, [&spec, &input](Image &output, int x, int y, int c) {
-            const double inValue = input.getFloat(x, y, c);
+            const float inValue = input.getFloat(x, y, c);
             output.setFloat(x, y, c, spec.scale * inValue + spec.bias);
         });
     };
@@ -124,7 +124,7 @@ Unary fixedConvolution2D(const FixedConvolution2DSpec &spec, const ImageTypeSpec
         const int kernelYOffset = spec.getKernelYOffset();
         // std::cout << spec.kernel.size() << " " << spec.kernel.at(0).size() << std::endl;
         forEachPixelAndChannel(output, [kernelYOffset, kernelXOffset, &spec, &input](Image &output, int x, int y, int c) {
-            double v = spec.bias;
+            float v = spec.bias;
             for (int i = 0; i < int(spec.kernel.size()); ++i) {
                 const int y1 = y * spec.yStride + i + kernelYOffset;
                 const auto &krow = spec.kernel.at(i);

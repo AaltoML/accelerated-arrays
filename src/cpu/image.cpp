@@ -139,7 +139,7 @@ bool Image::applyBorder(int &x, int &y, Border border) const {
     return applyBorder1D(x, width, border) && applyBorder1D(y, height, border);
 }
 
-void Image::setFloat(int x, int y, int channel, double value) {
+void Image::setFloat(int x, int y, int channel, float value) {
     switch (dataType) {
     #define X(type, name) case name: set<type>(x, y, channel, type(value)); return;
     ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(X)
@@ -148,7 +148,7 @@ void Image::setFloat(int x, int y, int channel, double value) {
     aa_assert(false);
 }
 
-double Image::getFloat(int x, int y, int channel) const {
+float Image::getFloat(int x, int y, int channel) const {
     switch (dataType) {
     #define X(type, name) case name: return static_cast<double>(get<type>(x, y, channel));
     ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(X)
@@ -158,23 +158,23 @@ double Image::getFloat(int x, int y, int channel) const {
     return 0;
 }
 
-double Image::getFloat(int x, int y, int channel, Border border) const {
+float Image::getFloat(int x, int y, int channel, Border border) const {
     if (!applyBorder(x, y, border)) return 0.0;
     return getFloat(x, y, channel);
 }
 
 // single channel shorthands (double API)
-void Image::setFloat(int x, int y, double value) {
+void Image::setFloat(int x, int y, float value) {
     aa_assert(channels == 1);
     setFloat(x, y, 0, value);
 }
 
-double Image::getFloat(int x, int y) const {
+float Image::getFloat(int x, int y) const {
     aa_assert(channels == 1);
     return getFloat(x, y, 0);
 }
 
-double Image::getFloat(int x, int y, Border border) const {
+float Image::getFloat(int x, int y, Border border) const {
     aa_assert(channels == 1);
     return getFloat(x, y, 0, border);
 }
