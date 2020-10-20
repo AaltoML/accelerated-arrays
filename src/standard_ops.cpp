@@ -20,6 +20,7 @@ Function fill::Spec::build(const ImageTypeSpec &outSpec) {
     } \
     Function x::Spec::build(const ImageTypeSpec &spec) { return build(spec, spec); }
 
+DEF_FUNC(copy)
 DEF_FUNC(rescale)
 DEF_FUNC(swizzle)
 DEF_FUNC(fixedConvolution2D)
@@ -33,6 +34,12 @@ Function StandardFactory::create(const pixelwiseAffine::Spec &spec, const ImageT
     pixelwiseAffineCombination::Spec comboSpec;
     comboSpec.factory = spec.factory;
     return create(comboSpec.addLinearPart(spec.linear).setBias(spec.bias), inSpec, outSpec);
+}
+
+Function StandardFactory::create(const copy::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
+    (void)spec;
+    aa_assert(inSpec.channels == outSpec.channels);
+    return create(swizzle::Spec(std::string("rgba").substr(0, outSpec.channels)), inSpec, outSpec);
 }
 
 swizzle::Spec::Spec(const std::string &s) {

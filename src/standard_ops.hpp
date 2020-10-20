@@ -12,6 +12,13 @@ struct Builder {
     StandardFactory *factory = nullptr;
 };
 
+namespace copy {
+    struct Spec : Builder {
+        Function build(const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec);
+        Function build(const ImageTypeSpec &spec);
+    };
+}
+
 namespace fill {
     struct Spec : Builder {
         std::vector<double> value;
@@ -262,8 +269,8 @@ struct StandardFactory : Builder {
     rescale::Spec rescale(double s) { return rescale().setScale(s); }
     rescale::Spec rescale(double x, double y) { return rescale().setScale(x, y); }
 
-    channelwiseAffine::Spec copy() {
-      return setFactory(channelwiseAffine::Spec{});
+    copy::Spec copy() {
+      return setFactory(copy::Spec{});
     }
 
     channelwiseAffine::Spec channelwiseAffine(double scale, double bias = 0.0) {
@@ -282,9 +289,6 @@ struct StandardFactory : Builder {
       return setFactory(fixedConvolution2D::Spec{}.setKernel(kernel));
     }
 
-    // uses combination
-    Function create(const pixelwiseAffine::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec);
-
     // actual implementation
     virtual Function create(const fill::Spec &spec, const ImageTypeSpec &imageSpec) = 0;
     virtual Function create(const swizzle::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) = 0;
@@ -292,6 +296,10 @@ struct StandardFactory : Builder {
     virtual Function create(const fixedConvolution2D::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) = 0;
     virtual Function create(const pixelwiseAffineCombination::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) = 0;
     virtual Function create(const channelwiseAffine::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) = 0;
+
+    // with default implementations
+    virtual Function create(const pixelwiseAffine::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec);
+    virtual Function create(const copy::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec);
 
 
 private:
