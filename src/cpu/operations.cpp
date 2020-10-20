@@ -142,6 +142,40 @@ NAry pixelwiseAffineCombination(const PixelwiseAffineCombinationSpec &spec, cons
     };
 }
 
+template <class T> Unary pixelwiseAffineUnary(const PixelwiseAffineCombinationSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
+    aa_assert(int(spec.linear.size()) == 1);
+    std::vector<float> bias, matColMajor;
+    const int n = outSpec.channels, m = inSpec.channels;
+    for (int i = 0; i < n; ++i) {
+        if (i >= int(spec.bias.size())) bias.push_back(0);
+        else bias.push_back(float(spec.bias.at(i)));
+
+        const auto &mat = spec.linear.at(0);
+        for (int j = 0; j < m; ++j) {
+            if (i < int(mat.size()) && j < int(mat.at(i).size())) {
+                matColMajor.push_back(mat.at(i).at(j));
+            } else {
+                matColMajor.push_back(0);
+            }
+        }
+    }
+    return [bias, matColMajor, n, m, inSpec, outSpec](Image &input, Image &output) {
+        const float *biasData = bias.data();
+        const float *matData = matColMajor.data();
+        forEachPixelFast<T>(input, output, inSpec, outSpec, [n, m, biasData, matData](const T *in, T *out) {
+            const float *coeff = matData;
+            for (int i = 0; i < n; ++i) {
+                float v = biasData[i];
+                for (int j = 0; j < m; ++j) {
+                    v += (*coeff) * float(in[j]);
+                    coeff++;
+                }
+                out[i] = T(v);
+            }
+        });
+    };
+}
+
 Unary channelwiseAffine(const ChannelwiseAffineSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
     return [spec, inSpec, outSpec](Image &input, Image &output) {
         aa_assert(output.channels == input.channels);
@@ -212,16 +246,24 @@ public:
     Function create(const SwizzleSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
         checkSpec(inSpec);
         checkSpec(outSpec);
-        #define X(type, name) if (inSpec.dataType == name && outSpec.dataType == name) \
-            return wrap<Unary>(impl::swizzle<type>(spec, inSpec, outSpec));
-        ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(X)
-        #undef X
+        if (inSpec.dataType == outSpec.dataType) {
+            #define X(type, name) if (inSpec.dataType == name) \
+                return wrap<Unary>(impl::swizzle<type>(spec, inSpec, outSpec));
+            ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(X)
+            #undef X
+        }
         return wrap<Unary>(impl::swizzleGeneric(spec, inSpec, outSpec));
     }
 
     Function create(const PixelwiseAffineCombinationSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
         checkSpec(inSpec);
         checkSpec(outSpec);
+        if (spec.linear.size() == 1 && inSpec.dataType == outSpec.dataType) {
+            #define X(type, name) if (inSpec.dataType == name) \
+                return wrap<Unary>(impl::pixelwiseAffineUnary<type>(spec, inSpec, outSpec));
+            ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(X)
+            #undef X
+        }
         return wrapNAry(impl::pixelwiseAffineCombination(spec, inSpec, outSpec));
     }
 

@@ -11,7 +11,8 @@ template <class T> struct FixedPoint {
     FixedPoint() : value(0) {}
     FixedPoint(double f) : value(fromFloat(f)) {}
     FixedPoint(const FixedPoint &other) : value(other.value) {}
-    operator double() { return toFloat(); }
+    operator double() const { return toFloat(); }
+    operator float() const { return toFloat(); }
 
     double toFloat() const {
         const double c = value;
