@@ -242,7 +242,7 @@ namespace swizzle {
         /** For example: bgr1 -> [0,0,0,1] */
         std::vector<int> constantList;
 
-        Spec(std::string s);
+        Spec(const std::string &s);
 
         Function build(const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec);
         Function build(const ImageTypeSpec &spec);
@@ -256,7 +256,7 @@ struct StandardFactory : Builder {
     fill::Spec fill(const std::vector<double> &v) { return setFactory(fill::Spec{}.setValue(v)); }
     fill::Spec fill(double v) { return setFactory(fill::Spec{}.setValue({ v })); }
 
-    swizzle::Spec swizzle(std::string spec) { return setFactory(swizzle::Spec(spec)); }
+    swizzle::Spec swizzle(const std::string &s) { return setFactory(swizzle::Spec(s)); }
 
     rescale::Spec rescale() { return setFactory(rescale::Spec{}); }
     rescale::Spec rescale(double s) { return rescale().setScale(s); }

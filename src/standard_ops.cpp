@@ -1,5 +1,6 @@
 #include "standard_ops.hpp"
 #include <map>
+#include <string>
 
 namespace accelerated {
 namespace operations {
@@ -34,7 +35,7 @@ Function StandardFactory::create(const pixelwiseAffine::Spec &spec, const ImageT
     return create(comboSpec.addLinearPart(spec.linear).setBias(spec.bias), inSpec, outSpec);
 }
 
-swizzle::Spec::Spec(std::string s) {
+swizzle::Spec::Spec(const std::string &s) {
     const std::map<char, int> chanLookup = {
         {'r', 0},
         {'g', 1},

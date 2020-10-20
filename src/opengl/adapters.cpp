@@ -455,6 +455,10 @@ public:
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexIndexBuffer);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        #ifndef __APPLE__
+            glBindVertexArray(0);
+            CHECK_ERROR(__FUNCTION__);
+        #endif
 
         aVertexData = glGetAttribLocation(program.getId(), "a_vertexData");
     }
@@ -473,11 +477,12 @@ public:
     void bind() final {
         program.bind();
 
+        glBindVertexArray(vao);
+        CHECK_ERROR(__FUNCTION__);
         glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexIndexBuffer);
         CHECK_ERROR(__FUNCTION__);
 
-        glBindVertexArray(vao);
         glEnableVertexAttribArray(aVertexData);
         glVertexAttribPointer(aVertexData, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
         CHECK_ERROR(__FUNCTION__);
@@ -485,11 +490,12 @@ public:
 
     void unbind() final {
         glDisableVertexAttribArray(aVertexData);
-        glBindVertexArray(0);
         CHECK_ERROR(__FUNCTION__);
 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
+        CHECK_ERROR(__FUNCTION__);
+        glBindVertexArray(0);
         CHECK_ERROR(__FUNCTION__);
 
         program.unbind();
