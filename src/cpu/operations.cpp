@@ -29,6 +29,26 @@ double interpolateFloat(Image &img, double x, double y, int c, Image::Interpolat
 
 namespace impl { // to avoid name clashes with StandardFactory
 
+template <class T>
+void forEachPixelFast(
+    Image &in, Image &out,
+    const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec,
+    const std::function<void(const T *inPtr, T *outPtr)> &f)
+{
+    aa_assert(in.width == out.width && in.height == out.height);
+    aa_assert(in == inSpec);
+    aa_assert(out == outSpec);
+    const T *inPtr = in.getData<T>();
+    T *outPtr = out.getData<T>();
+    for (int y = 0; y < in.height; ++y) {
+        for (int x = 0; x < in.width; ++x) {
+            f(inPtr, outPtr);
+            inPtr += inSpec.channels;
+            outPtr += outSpec.channels;
+        }
+    }
+}
+
 void forEachPixelAndChannel(Image &img, const std::function<void(Image &img, int x, int y, int c)> &f) {
     for (int y = 0; y < img.height; ++y) {
         for (int x = 0; x < img.width; ++x) {
@@ -65,7 +85,7 @@ Unary rescale(const RescaleSpec &spec, const ImageTypeSpec &inSpec, const ImageT
     };
 }
 
-Unary swizzle(const SwizzleSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
+Unary swizzleGeneric(const SwizzleSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
     aa_assert(int(spec.channelList.size()) == outSpec.channels);
     return [spec, inSpec, outSpec](Image &input, Image &output) {
         aa_assert(input == inSpec);
@@ -76,6 +96,25 @@ Unary swizzle(const SwizzleSpec &spec, const ImageTypeSpec &inSpec, const ImageT
                 output.set<float>(x, y, c, spec.constantList.at(c));
             } else {
                 output.set<float>(x, y, c, input.get<float>(x, y, spec.channelList.at(c)));
+            }
+        });
+    };
+}
+
+template <class T> Unary swizzle(const SwizzleSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
+    aa_assert(int(spec.channelList.size()) == outSpec.channels);
+    return [spec, inSpec, outSpec](Image &input, Image &output) {
+        int n = spec.channelList.size();
+        const int *chanList = spec.channelList.data();
+        const int *constList = spec.constantList.data();
+        forEachPixelFast<T>(input, output, inSpec, outSpec, [n, chanList, constList](const T *in, T *out) {
+            for (int c = 0; c < n; ++c) {
+                int chan = chanList[c];
+                if (chan == -1) {
+                    out[c] = constList[c];
+                } else {
+                    out[c] = in[chan];
+                }
             }
         });
     };
@@ -173,7 +212,11 @@ public:
     Function create(const SwizzleSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
         checkSpec(inSpec);
         checkSpec(outSpec);
-        return wrap<Unary>(impl::swizzle(spec, inSpec, outSpec));
+        #define X(type, name) if (inSpec.dataType == name && outSpec.dataType == name) \
+            return wrap<Unary>(impl::swizzle<type>(spec, inSpec, outSpec));
+        ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(X)
+        #undef X
+        return wrap<Unary>(impl::swizzleGeneric(spec, inSpec, outSpec));
     }
 
     Function create(const PixelwiseAffineCombinationSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
