@@ -70,7 +70,7 @@ NAry pixelwiseAffineCombination(const PixelwiseAffineCombinationSpec &spec, cons
         aa_assert(output == outSpec);
         for (int i = 0; i < nInputs; ++i) aa_assert(*inputs[i] == inSpec);
         forEachPixelAndChannel(output, [&spec, inputs, nInputs](Image &output, int x, int y, int c) {
-            double v = spec.bias.at(c);
+            double v = spec.bias.empty() ? 0.0 : spec.bias.at(c);
             for (int i = 0; i < nInputs; ++i) {
                 auto &input = *inputs[i];
                 const auto &matRow = spec.linear.at(i).at(c);
