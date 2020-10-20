@@ -231,12 +231,32 @@ namespace rescale {
     };
 }
 
+/**
+ * Reorder and replicate image channels using a short syntax, e.g., to
+ * to convert from BGR to RGBA with A=1, swizzle with "bgr1"
+ */
+namespace swizzle {
+    struct Spec : Builder {
+        /** For example: bgr1 -> [2,1,0 -1] */
+        std::vector<int> channelList;
+        /** For example: bgr1 -> [0,0,0,1] */
+        std::vector<int> constantList;
+
+        Spec(std::string s);
+
+        Function build(const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec);
+        Function build(const ImageTypeSpec &spec);
+    };
+}
+
 struct StandardFactory : Builder {
     virtual ~StandardFactory();
 
     // shorthands
     fill::Spec fill(const std::vector<double> &v) { return setFactory(fill::Spec{}.setValue(v)); }
     fill::Spec fill(double v) { return setFactory(fill::Spec{}.setValue({ v })); }
+
+    swizzle::Spec swizzle(std::string spec) { return setFactory(swizzle::Spec(spec)); }
 
     rescale::Spec rescale() { return setFactory(rescale::Spec{}); }
     rescale::Spec rescale(double s) { return rescale().setScale(s); }
@@ -267,6 +287,7 @@ struct StandardFactory : Builder {
 
     // actual implementation
     virtual Function create(const fill::Spec &spec, const ImageTypeSpec &imageSpec) = 0;
+    virtual Function create(const swizzle::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) = 0;
     virtual Function create(const rescale::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) = 0;
     virtual Function create(const fixedConvolution2D::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) = 0;
     virtual Function create(const pixelwiseAffineCombination::Spec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) = 0;

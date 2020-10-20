@@ -1,4 +1,5 @@
 #include "standard_ops.hpp"
+#include <map>
 
 namespace accelerated {
 namespace operations {
@@ -19,6 +20,7 @@ Function fill::Spec::build(const ImageTypeSpec &outSpec) {
     Function x::Spec::build(const ImageTypeSpec &spec) { return build(spec, spec); }
 
 DEF_FUNC(rescale)
+DEF_FUNC(swizzle)
 DEF_FUNC(fixedConvolution2D)
 DEF_FUNC(channelwiseAffine)
 DEF_FUNC(pixelwiseAffine)
@@ -30,6 +32,36 @@ Function StandardFactory::create(const pixelwiseAffine::Spec &spec, const ImageT
     pixelwiseAffineCombination::Spec comboSpec;
     comboSpec.factory = spec.factory;
     return create(comboSpec.addLinearPart(spec.linear).setBias(spec.bias), inSpec, outSpec);
+}
+
+swizzle::Spec::Spec(std::string s) {
+    const std::map<char, int> chanLookup = {
+        {'r', 0},
+        {'g', 1},
+        {'b', 2},
+        {'a', 3},
+        {'x', 0},
+        {'y', 1},
+        {'z', 2},
+        {'w', 3},
+    };
+
+    const std::map<int, int> constLookup = {
+        {'0', 0},
+        {'1', 1}
+    };
+
+    for (char c : s) {
+        if (chanLookup.count(c)) {
+            channelList.push_back(chanLookup.at(c));
+            constantList.push_back(0);
+        } else if (constLookup.count(c)) {
+            channelList.push_back(-1);
+            constantList.push_back(constLookup.at(c));
+        } else {
+            aa_assert("invalid swizzle character");
+        }
+    }
 }
 
 }

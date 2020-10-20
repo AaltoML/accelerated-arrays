@@ -11,6 +11,7 @@ typedef ::accelerated::Image BaseImage;
 typedef ::accelerated::operations::fixedConvolution2D::Spec FixedConvolution2DSpec;
 typedef ::accelerated::operations::fill::Spec FillSpec;
 typedef ::accelerated::operations::rescale::Spec RescaleSpec;
+typedef ::accelerated::operations::swizzle::Spec SwizzleSpec;
 typedef ::accelerated::operations::pixelwiseAffineCombination::Spec PixelwiseAffineCombinationSpec;
 typedef ::accelerated::operations::channelwiseAffine::Spec ChannelwiseAffineSpec;
 using ::accelerated::operations::Function;
@@ -60,6 +61,22 @@ Unary rescale(const RescaleSpec &spec, const ImageTypeSpec &inSpec, const ImageT
             double newY = (relY * spec.yScale + spec.yTranslation) * input.height;
 
             output.setFloat(x, y, c, interpolateFloat(input, newX, newY, c, spec.interpolation, spec.border));
+        });
+    };
+}
+
+Unary swizzle(const SwizzleSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
+    aa_assert(int(spec.channelList.size()) == outSpec.channels);
+    return [spec, inSpec, outSpec](Image &input, Image &output) {
+        aa_assert(input == inSpec);
+        aa_assert(output == outSpec);
+        forEachPixelAndChannel(output, [&spec, &input](Image &output, int x, int y, int c) {
+            int chan = spec.channelList.at(c);
+            if (chan == -1) {
+                output.setFloat(x, y, c, spec.constantList.at(c));
+            } else {
+                output.setFloat(x, y, c, input.getFloat(x, y, spec.channelList.at(c)));
+            }
         });
     };
 }
@@ -151,6 +168,12 @@ public:
         checkSpec(inSpec);
         checkSpec(outSpec);
         return wrap<Unary>(impl::rescale(spec, inSpec, outSpec));
+    }
+
+    Function create(const SwizzleSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
+        checkSpec(inSpec);
+        checkSpec(outSpec);
+        return wrap<Unary>(impl::swizzle(spec, inSpec, outSpec));
     }
 
     Function create(const PixelwiseAffineCombinationSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {

@@ -13,6 +13,7 @@ namespace operations {
 namespace {
 typedef ::accelerated::operations::fill::Spec FillSpec;
 typedef ::accelerated::operations::rescale::Spec RescaleSpec;
+typedef ::accelerated::operations::swizzle::Spec SwizzleSpec;
 typedef ::accelerated::operations::fixedConvolution2D::Spec FixedConvolution2DSpec;
 typedef ::accelerated::operations::pixelwiseAffineCombination::Spec PixelwiseAffineCombinationSpec;
 typedef ::accelerated::operations::channelwiseAffine::Spec ChannelwiseAffineSpec;
@@ -95,6 +96,69 @@ Shader<Unary>::Builder rescale(const RescaleSpec &spec, const ImageTypeSpec &inS
 
         pipeline.setTextureBorder(0, spec.border);
         pipeline.setTextureInterpolation(0, spec.interpolation);
+
+        shader->function = [&pipeline, inSpec, outSpec](Image &input, Image &output) {
+            aa_assert(input == inSpec);
+            aa_assert(output == outSpec);
+
+            Binder binder(pipeline);
+            Binder inputBinder(pipeline.bindTexture(0, input.getTextureId()));
+            pipeline.call(output.getFrameBuffer());
+        };
+
+        return shader;
+    };
+}
+
+Shader<Unary>::Builder swizzle(const SwizzleSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
+    std::string fragmentShaderBody;
+    {
+        aa_assert(int(spec.channelList.size()) == outSpec.channels);
+        std::ostringstream oss;
+        const std::string swizFull = glsl::swizzleSubset(4);
+        std::string swizIn, swizOut, constVec;
+        bool anyConst;
+
+        {
+            std::ostringstream swizInS, swizOutS, constVecS;
+            for (int i = 0; i < outSpec.channels; ++i) {
+                if (i > 0) constVecS << ",";
+                constVecS << spec.constantList.at(i);
+                const int c = spec.channelList.at(i);
+                if (c == -1) {
+                    anyConst = true;
+                } else {
+                    swizInS << swizFull[c];
+                    swizOutS << swizFull[i];
+                }
+            }
+
+            swizIn = swizInS.str();
+            swizOut = swizOutS.str();
+            constVec = constVecS.str();
+        }
+
+        oss << "void main() {\n";
+        if (anyConst) {
+            oss << "outValue = " << getGlslVecType(outSpec) << "(" << constVec << ");\n";
+        }
+        if (!swizIn.empty()) {
+            oss << "outValue";
+            if (anyConst) {
+                aa_assert(outSpec.channels > 1);
+                oss << "." << swizOut;
+            }
+            oss << " = texture(u_texture, v_texCoord)." << swizIn << ";\n";
+        }
+        oss << "}\n";
+
+        fragmentShaderBody = oss.str();
+    }
+
+    return [fragmentShaderBody, inSpec, outSpec, spec]() {
+        std::unique_ptr< Shader<Unary> > shader(new Shader<Unary>);
+        shader->resources = GlslPipeline::create(fragmentShaderBody.c_str(), { inSpec }, outSpec);
+        GlslPipeline &pipeline = reinterpret_cast<GlslPipeline&>(*shader->resources);
 
         shader->function = [&pipeline, inSpec, outSpec](Image &input, Image &output) {
             aa_assert(input == inSpec);
@@ -349,6 +413,12 @@ public:
         checkSpec(inSpec);
         checkSpec(outSpec);
         return wrap<Unary>(impl::rescale(spec, inSpec, outSpec));
+    }
+
+    Function create(const SwizzleSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
+        checkSpec(inSpec);
+        checkSpec(outSpec);
+        return wrap<Unary>(impl::swizzle(spec, inSpec, outSpec));
     }
 
     Function create(const PixelwiseAffineCombinationSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {

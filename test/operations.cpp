@@ -87,7 +87,6 @@ TEST_CASE( "Convolution 2D", "[accelerated-arrays]" ) {
     }
 }
 
-
 TEST_CASE( "Affine pixel ops & copyFrom", "[accelerated-arrays]" ) {
 
     std::vector< ProcessorItem > items;
@@ -151,5 +150,46 @@ TEST_CASE( "Affine pixel ops & copyFrom", "[accelerated-arrays]" ) {
         // std::cout << af << "," << ai << "," << bf << "," << bi << "\t" << outVal << std::endl;
 
         REQUIRE(outVal == bi);
+    }
+}
+
+TEST_CASE( "Swizzle", "[accelerated-arrays]" ) {
+    std::vector< ProcessorItem > items;
+    items.emplace_back(Processor::createInstant());
+    items.emplace_back(Processor::createThreadPool(1));
+    items.emplace_back(Processor::createThreadPool(5));
+
+    #ifdef TEST_WITH_OPENGL
+
+    items.emplace_back();
+    items.back().processor = opengl::createGLFWProcessor();
+    items.back().img = opengl::Image::createFactory(*items.back().processor);
+    items.back().ops = opengl::operations::createFactory(*items.back().processor);
+
+    #endif
+
+    for (auto &it : items) {
+        typedef std::uint32_t Type;
+        std::vector<Type> inData = {
+            1,2,  3,4,  5,0,
+            0,0,  9,0,  0,6
+        };
+        auto inImage = it.img->create<Type, 2>(3, 2);
+        inImage->write(inData).wait();
+
+        auto outImage = it.img->create<Type, 4>(3, 2);
+        auto swiz = it.ops->swizzle("0gr1").build(*inImage, *outImage);
+
+        operations::callUnary(swiz, *inImage, *outImage).wait();
+
+        auto factory = cpu::Image::createFactory();
+        auto checkImage = factory->createLike(*outImage);
+        auto &outCpu = cpu::Image::castFrom(*checkImage);
+        outCpu.copyFrom(*outImage).wait();
+
+        REQUIRE(outCpu.get<Type>(1, 0, 0) == 0);
+        REQUIRE(outCpu.get<Type>(1, 0, 1) == 4);
+        REQUIRE(outCpu.get<Type>(1, 0, 2) == 3);
+        REQUIRE(outCpu.get<Type>(1, 0, 3) == 1);
     }
 }
