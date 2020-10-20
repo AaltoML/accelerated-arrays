@@ -4,6 +4,10 @@
 
 #include <array>
 #include <cstring>
+#include <cassert>
+
+// use normal, disableable assert for per-pixel checks
+#define ACCELERATED_ARRAYS_PIXEL_ASSERT(...) assert(__VA_ARGS__)
 
 namespace accelerated {
 namespace cpu {
@@ -11,7 +15,7 @@ class Image : public ::accelerated::Image {
 public:
     template<class T, std::size_t N> std::array<T, N> get(int x, int y) const {
         checkType<T>();
-        aa_assert(channels == N);
+        ACCELERATED_ARRAYS_PIXEL_ASSERT(channels == N);
         std::array<T, N> result;
         get(x, y, reinterpret_cast<std::uint8_t*>(&result));
         return result;
@@ -19,25 +23,15 @@ public:
 
     template<class T, std::size_t N> void set(int x, int y, const std::array<T, N> &array) {
         checkType<T>();
-        aa_assert(channels == N);
-        aa_assert(x >= 0 && y >= 0 && x < width && y < height);
+        ACCELERATED_ARRAYS_PIXEL_ASSERT(channels == N);
+        ACCELERATED_ARRAYS_PIXEL_ASSERT(x >= 0 && y >= 0 && x < width && y < height);
         set(x, y, reinterpret_cast<const std::uint8_t*>(&array));
     }
 
-    template<class T> T get(int x, int y, int channel) const {
-        checkType<T>();
-        T result;
-        get(x, y, channel, reinterpret_cast<std::uint8_t*>(&result));
-        return result;
-    }
+    template<class T> T get(int x, int y, int channel) const;
+    template<class T> void set(int x, int y, int channel, T value);
 
-    template<class T> void set(int x, int y, int channel, T value) {
-        checkType<T>();
-        aa_assert(x >= 0 && y >= 0 && x < width && y < height);
-        set(x, y, channel, reinterpret_cast<const std::uint8_t*>(&value));
-    }
-
-    template<class T> T get(int x, int y, int c, Border border) const {
+    template<class T> inline T get(int x, int y, int c, Border border) const {
         if (!applyBorder(x, y, border)) return T(double(0));
         return get<T>(x, y, c);
     }
@@ -53,29 +47,19 @@ public:
 
     // single-channel shorthands
     template<class T> T get(int x, int y) const {
-        return get<T, 1>(x, y).at(0);
+        ACCELERATED_ARRAYS_PIXEL_ASSERT(channels == 1);
+        return get<T>(x, y, 0);
     }
 
     template<class T> void set(int x, int y, T value) {
-        set<T, 1>(x, y, { value });
+        ACCELERATED_ARRAYS_PIXEL_ASSERT(channels == 1);
+        return set<T>(x, y, 0, value);
     }
 
     template<class T> T get(int x, int y, Border border) const {
         if (!applyBorder(x, y, border)) return T(double(0));
         return get<T>(x, y);
     }
-
-    // convert-to/from-double API: useful for avoiding template bloat
-    // on the user side
-
-    void setFloat(int x, int y, int channel, float value);
-    float getFloat(int x, int y, int channel) const;
-    float getFloat(int x, int y, int channel, Border border) const;
-
-    // single channel shorthands (double API)
-    void setFloat(int x, int y, float value);
-    float getFloat(int x, int y) const;
-    float getFloat(int x, int y, Border border) const;
 
     // adapters for copying to/from possibly non-CPU images
     virtual Future copyFrom(::accelerated::Image &other) = 0;
@@ -117,5 +101,11 @@ protected:
     virtual void get(int x, int y, int channel, std::uint8_t *targetArray) const = 0;
     virtual void set(int x, int y, int channel, const std::uint8_t *srcArray) = 0;
 };
+
+#define X(dtype) \
+    template<> dtype Image::get<dtype>(int x, int y, int channel) const; \
+    template<> void Image::set<dtype>(int x, int y, int channel, dtype value);
+ACCELERATED_IMAGE_FOR_EACH_TYPE(X)
+#undef X
 }
 }

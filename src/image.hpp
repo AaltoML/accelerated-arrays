@@ -160,20 +160,23 @@ struct Image : ImageTypeSpec {
     }
 };
 
-#define ACCELERATED_IMAGE_FOR_EACH_TYPE(x) \
+#define ACCELERATED_IMAGE_FOR_EACH_NON_FLOAT_TYPE(x) \
     x(std::uint8_t) \
     x(std::int8_t) \
     x(std::uint16_t) \
     x(std::int16_t) \
     x(std::uint32_t) \
     x(std::int32_t) \
-    x(float) \
     x(FixedPoint<std::uint8_t>) \
     x(FixedPoint<std::int8_t>) \
     x(FixedPoint<std::uint16_t>) \
     x(FixedPoint<std::int16_t>) \
     x(FixedPoint<std::uint32_t>) \
     x(FixedPoint<std::int32_t>)
+
+#define ACCELERATED_IMAGE_FOR_EACH_TYPE(x) \
+    ACCELERATED_IMAGE_FOR_EACH_NON_FLOAT_TYPE(x) \
+    x(float)
 
 #define ACCELERATED_IMAGE_FOR_EACH_TYPE_WITH_EXTRAS(x, extra) \
     x(std::uint8_t, extra) \
@@ -206,20 +209,23 @@ struct Image : ImageTypeSpec {
     ACCELERATED_IMAGE_FOR_EACH_TYPE_WITH_EXTRAS(x, FixedPoint<std::uint32_t>) \
     ACCELERATED_IMAGE_FOR_EACH_TYPE_WITH_EXTRAS(x, FixedPoint<std::int32_t>)
 
-#define ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(x) \
+#define ACCELERATED_IMAGE_FOR_EACH_NON_FLOAT_NAMED_TYPE(x) \
     x(std::uint8_t, ImageTypeSpec::DataType::UINT8) \
     x(std::int8_t, ImageTypeSpec::DataType::SINT8) \
     x(std::uint16_t, ImageTypeSpec::DataType::UINT16) \
     x(std::int16_t, ImageTypeSpec::DataType::SINT16) \
     x(std::uint32_t, ImageTypeSpec::DataType::UINT32) \
     x(std::int32_t, ImageTypeSpec::DataType::SINT32) \
-    x(float, ImageTypeSpec::DataType::FLOAT32) \
     x(FixedPoint<std::uint8_t>, ImageTypeSpec::DataType::UFIXED8) \
     x(FixedPoint<std::int8_t>, ImageTypeSpec::DataType::SFIXED8) \
     x(FixedPoint<std::uint16_t>, ImageTypeSpec::DataType::UFIXED16) \
     x(FixedPoint<std::int16_t>, ImageTypeSpec::DataType::SFIXED16) \
     x(FixedPoint<std::uint32_t>, ImageTypeSpec::DataType::UFIXED32) \
     x(FixedPoint<std::int32_t>, ImageTypeSpec::DataType::SFIXED32)
+
+#define ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(x) \
+    ACCELERATED_IMAGE_FOR_EACH_NON_FLOAT_NAMED_TYPE(x) \
+    x(float, ImageTypeSpec::DataType::FLOAT32)
 
 #define Y(dtype, n) \
     template <> std::unique_ptr<Image> Image::Factory::create<dtype, n>(int w, int h); \

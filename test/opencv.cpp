@@ -13,7 +13,7 @@ TEST_CASE( "OpenCV adapter (from)", "[accelerated-arrays]" ) {
         auto image = opencv::ref(testMat);
         REQUIRE(image->get<std::uint8_t>(2, 1) == 3);
         REQUIRE(image->get<std::uint8_t>(1, 2) == 0);
-        image->setFloat(1, 2, 4.001);
+        image->set<float>(1, 2, 4.001);
         REQUIRE(testMat.at<std::uint8_t>(2, 1) == 4);
     }
 

@@ -31,14 +31,14 @@ protected:
     }
 
     void get(int x, int y, int channel, std::uint8_t *targetArray) const final {
-        aa_assert(channel >= 0 && channel < channels);
+        ACCELERATED_ARRAYS_PIXEL_ASSERT(channel >= 0 && channel < channels);
         const auto bpc = bytesPerChannel();
         const auto offset = index(x, y) + channel * bpc;
         for (std::size_t i = 0; i < bpc; ++i) targetArray[i] = data[i + offset];
     }
 
     void set(int x, int y, int channel, const std::uint8_t *srcArray) final {
-        aa_assert(channel >= 0 && channel < channels);
+        ACCELERATED_ARRAYS_PIXEL_ASSERT(channel >= 0 && channel < channels);
         const auto bpc = bytesPerChannel();
         const auto offset = index(x, y) + channel * bpc;
         for (std::size_t i = 0; i < bpc; ++i) data[i + offset] = srcArray[i];
@@ -117,7 +117,7 @@ inline bool applyBorder1D(int &i, int size, Image::Border border) {
     case Image::Border::MIRROR:
         if (i < 0) i = -i;
         else if (i >= size) i = size - 1 - (i - (size - 1));
-        aa_assert(i >= 0 && i < size); // multiple mirroring undefined
+        ACCELERATED_ARRAYS_PIXEL_ASSERT(i >= 0 && i < size); // multiple mirroring undefined
         return true;
     case Image::Border::REPEAT:
         if (i < 0) i = size - (-i % size);
@@ -129,7 +129,7 @@ inline bool applyBorder1D(int &i, int size, Image::Border border) {
         return true;
     case Image::Border::UNDEFINED:
     default:
-        aa_assert(false);
+        ACCELERATED_ARRAYS_PIXEL_ASSERT(false);
         return false;
     }
 }
@@ -139,44 +139,49 @@ bool Image::applyBorder(int &x, int &y, Border border) const {
     return applyBorder1D(x, width, border) && applyBorder1D(y, height, border);
 }
 
-void Image::setFloat(int x, int y, int channel, float value) {
-    switch (dataType) {
-    #define X(type, name) case name: set<type>(x, y, channel, type(value)); return;
-    ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(X)
-    #undef X
-    }
-    aa_assert(false);
+#define X(dtype) \
+template<> dtype Image::get<dtype>(int x, int y, int channel) const { \
+    checkType<dtype>(); \
+    dtype result; \
+    ACCELERATED_ARRAYS_PIXEL_ASSERT(x >= 0 && y >= 0 && x < width && y < height); \
+    get(x, y, channel, reinterpret_cast<std::uint8_t*>(&result)); \
+    return result; \
+} \
+template<> void Image::set<dtype>(int x, int y, int channel, dtype value) { \
+    checkType<dtype>(); \
+    ACCELERATED_ARRAYS_PIXEL_ASSERT(x >= 0 && y >= 0 && x < width && y < height); \
+    set(x, y, channel, reinterpret_cast<const std::uint8_t*>(&value)); \
 }
+ACCELERATED_IMAGE_FOR_EACH_NON_FLOAT_TYPE(X)
+#undef X
 
-float Image::getFloat(int x, int y, int channel) const {
+template<> float Image::get<float>(int x, int y, int channel) const {
     switch (dataType) {
+    case DataType::FLOAT32: {
+        float result;
+        get(x, y, channel, reinterpret_cast<std::uint8_t*>(&result));
+        return result;
+    }
     #define X(type, name) case name: return static_cast<double>(get<type>(x, y, channel));
-    ACCELERATED_IMAGE_FOR_EACH_NAMED_TYPE(X)
+    ACCELERATED_IMAGE_FOR_EACH_NON_FLOAT_NAMED_TYPE(X)
     #undef X
     }
-    aa_assert(false);
+    ACCELERATED_ARRAYS_PIXEL_ASSERT(false);
     return 0;
 }
 
-float Image::getFloat(int x, int y, int channel, Border border) const {
-    if (!applyBorder(x, y, border)) return 0.0;
-    return getFloat(x, y, channel);
-}
-
-// single channel shorthands (double API)
-void Image::setFloat(int x, int y, float value) {
-    aa_assert(channels == 1);
-    setFloat(x, y, 0, value);
-}
-
-float Image::getFloat(int x, int y) const {
-    aa_assert(channels == 1);
-    return getFloat(x, y, 0);
-}
-
-float Image::getFloat(int x, int y, Border border) const {
-    aa_assert(channels == 1);
-    return getFloat(x, y, 0, border);
+template<> void Image::set<float>(int x, int y, int channel, float value) {
+    switch (dataType) {
+    case DataType::FLOAT32: {
+        ACCELERATED_ARRAYS_PIXEL_ASSERT(x >= 0 && y >= 0 && x < width && y < height);
+        set(x, y, channel, reinterpret_cast<const std::uint8_t*>(&value));
+        return;
+    }
+    #define X(type, name) case name: set<type>(x, y, channel, type(value)); return;
+    ACCELERATED_IMAGE_FOR_EACH_NON_FLOAT_NAMED_TYPE(X)
+    #undef X
+    }
+    ACCELERATED_ARRAYS_PIXEL_ASSERT(false);
 }
 
 ImageTypeSpec Image::getSpec(int channels, DataType dtype) {

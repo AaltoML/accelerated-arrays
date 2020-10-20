@@ -45,12 +45,12 @@ TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
         const auto &cpuImg = cpu::Image::castFrom(*image);
         REQUIRE(cpuImg.get<std::int16_t>(2, 0, 0) == 5);
         REQUIRE(cpuImg.get<std::int16_t>(2, 1, 1) == 6);
-        REQUIRE(std::fabs(cpuImg.getFloat(2, 1, 1) - 6) < 1e-10);
+        REQUIRE(std::fabs(cpuImg.get<float>(2, 1, 1) - 6) < 1e-10);
         REQUIRE(cpuImg.get<std::int16_t>(3, 0, 0, Image::Border::CLAMP) == 5);
         REQUIRE(cpuImg.get<std::int16_t>(3, 0, 0, Image::Border::MIRROR) == 3);
         REQUIRE(cpuImg.get<std::int16_t>(3, 0, 0, Image::Border::ZERO) == 0);
         REQUIRE(cpuImg.get<std::int16_t>(3, 0, 0, Image::Border::REPEAT) == 1);
-        REQUIRE(std::fabs(cpuImg.getFloat(3, 0, 0, Image::Border::CLAMP) - 5) < 1e-10);
+        REQUIRE(std::fabs(cpuImg.get<float>(3, 0, 0, Image::Border::CLAMP) - 5) < 1e-10);
         auto pix = cpuImg.get<std::int16_t, 2>(1, 0);
         REQUIRE(pix.size() == 2);
         REQUIRE(pix.at(0) ==  3);
@@ -74,8 +74,8 @@ TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
         cpuImg.set<std::int16_t>(2, 1, 1, 12);
         REQUIRE(cpuImg.get<std::int16_t>(2, 1, 1) == 12);
         REQUIRE(imgRef->get<std::int16_t>(2, 1, 1) == 12);
-        cpuImg.setFloat(2, 1, 1, 13.001);
-        REQUIRE(std::fabs(cpuImg.getFloat(2, 1, 1) - 13.001) < 0.001);
+        cpuImg.set<float>(2, 1, 1, 13.001);
+        REQUIRE(std::fabs(cpuImg.get<float>(2, 1, 1) - 13.001) < 0.001);
         REQUIRE(imgRef->get<std::int16_t>(2, 1, 1) != 12);
         REQUIRE(imgRef->get<std::int16_t>(0, 0, 1) == 2);
     }
@@ -116,8 +116,8 @@ TEST_CASE( "Fixed point images", "[accelerated-arrays]" ) {
     image->write(reinterpret_cast<std::vector<Type>&>(in)).wait();
     auto &cpuImg = cpu::Image::castFrom(*image);
     REQUIRE(cpuImg.get<Type>(2, 0, 0).value == 5);
-    REQUIRE(std::fabs(cpuImg.getFloat(2, 0, 0) - 5.0 / 0x7fff) < 0.0001);
-    cpuImg.setFloat(2, 0, 0, 23.001 / 0x7fff);
+    REQUIRE(std::fabs(cpuImg.get<float>(2, 0, 0) - 5.0 / 0x7fff) < 0.0001);
+    cpuImg.set<float>(2, 0, 0, 23.001 / 0x7fff);
     REQUIRE(cpuImg.get<Type>(2, 0, 0).value == 23);
-    REQUIRE(std::fabs(cpuImg.getFloat(2, 0, 0) - 23.001 / 0x7fff) < 0.0001);
+    REQUIRE(std::fabs(cpuImg.get<float>(2, 0, 0) - 23.001 / 0x7fff) < 0.0001);
 }

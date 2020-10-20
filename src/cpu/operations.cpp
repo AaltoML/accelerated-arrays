@@ -24,7 +24,7 @@ void checkSpec(const ImageTypeSpec &spec) {
 double interpolateFloat(Image &img, double x, double y, int c, Image::Interpolation i, Image::Border b) {
     aa_assert(i == Image::Interpolation::NEAREST || i == Image::Interpolation::UNDEFINED); // TODO
     // note: not necessarily consisten rounding for negative vals
-    return img.getFloat(int(x + 0.5), int(y + 0.5), c, b);
+    return img.get<float>(int(x + 0.5), int(y + 0.5), c, b);
 }
 
 namespace impl { // to avoid name clashes with StandardFactory
@@ -44,7 +44,7 @@ Nullary fill(const FillSpec &spec, const ImageTypeSpec &outSpec) {
     return [spec, outSpec](Image &output) {
         aa_assert(output == outSpec);
         forEachPixelAndChannel(output, [&spec](Image &output, int x, int y, int c) {
-            output.setFloat(x, y, c, spec.value.at(c));
+            output.set<float>(x, y, c, spec.value.at(c));
         });
     };
 }
@@ -60,7 +60,7 @@ Unary rescale(const RescaleSpec &spec, const ImageTypeSpec &inSpec, const ImageT
             float newX = (relX * spec.xScale + spec.xTranslation) * input.width;
             float newY = (relY * spec.yScale + spec.yTranslation) * input.height;
 
-            output.setFloat(x, y, c, interpolateFloat(input, newX, newY, c, spec.interpolation, spec.border));
+            output.set<float>(x, y, c, interpolateFloat(input, newX, newY, c, spec.interpolation, spec.border));
         });
     };
 }
@@ -73,9 +73,9 @@ Unary swizzle(const SwizzleSpec &spec, const ImageTypeSpec &inSpec, const ImageT
         forEachPixelAndChannel(output, [&spec, &input](Image &output, int x, int y, int c) {
             int chan = spec.channelList.at(c);
             if (chan == -1) {
-                output.setFloat(x, y, c, spec.constantList.at(c));
+                output.set<float>(x, y, c, spec.constantList.at(c));
             } else {
-                output.setFloat(x, y, c, input.getFloat(x, y, spec.channelList.at(c)));
+                output.set<float>(x, y, c, input.get<float>(x, y, spec.channelList.at(c)));
             }
         });
     };
@@ -93,12 +93,12 @@ NAry pixelwiseAffineCombination(const PixelwiseAffineCombinationSpec &spec, cons
                 const auto &matRow = spec.linear.at(i).at(c);
                 aa_assert(int(matRow.size()) == input.channels);
                 for (int inChan = 0; inChan < input.channels; ++inChan) {
-                    const float inValue = input.getFloat(x, y, inChan);
+                    const float inValue = input.get<float>(x, y, inChan);
                     v += matRow.at(inChan) * inValue;
                 }
             }
             // std::cout << x << " " << y << " " << c << " = " << v << std::endl;
-            output.setFloat(x, y, c, v);
+            output.set<float>(x, y, c, v);
         });
     };
 }
@@ -109,8 +109,8 @@ Unary channelwiseAffine(const ChannelwiseAffineSpec &spec, const ImageTypeSpec &
         aa_assert(input == inSpec);
         aa_assert(output == outSpec);
         forEachPixelAndChannel(output, [&spec, &input](Image &output, int x, int y, int c) {
-            const float inValue = input.getFloat(x, y, c);
-            output.setFloat(x, y, c, spec.scale * inValue + spec.bias);
+            const float inValue = input.get<float>(x, y, c);
+            output.set<float>(x, y, c, spec.scale * inValue + spec.bias);
         });
     };
 }
@@ -130,13 +130,13 @@ Unary fixedConvolution2D(const FixedConvolution2DSpec &spec, const ImageTypeSpec
                 const auto &krow = spec.kernel.at(i);
                 for (int j = 0; j < int(krow.size()); ++j) {
                     const int x1 = x * spec.xStride + j + kernelXOffset;
-                    v += input.getFloat(x1, y1, c, spec.border) * krow.at(j);
+                    v += input.get<float>(x1, y1, c, spec.border) * krow.at(j);
                     //std::cout << " x:" << x << " y:" << y << " c:" << c << " i:" << i << " j:"  << j
                     // << " x1:" << x1 << " y1:" << y1 << " : " << double(input.get<T>(x1, y1, c, spec.border)) << " * " <<  krow.at(j) << std::endl;
                  }
             }
             // std::cout << x << " " << y << " " << c << " = " << v << std::endl;
-            output.setFloat(x, y, c, v);
+            output.set<float>(x, y, c, v);
         });
     };
 }
