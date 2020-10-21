@@ -445,20 +445,18 @@ public:
                 1, 1, 1, 1,
                 1, -1, 1, 0
         };
-
         glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
         glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData), vertexData, GL_STATIC_DRAW);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
 
         // Set up indices
         GLuint indices[] { 2, 1, 0, 0, 3, 2 };
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexIndexBuffer);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+        // Unbind evrything
+        glBindVertexArray(0); // Has to happen before unbinding other buffers
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        #ifndef __APPLE__
-            glBindVertexArray(0);
-            CHECK_ERROR(__FUNCTION__);
-        #endif
 
         aVertexData = glGetAttribLocation(program.getId(), "a_vertexData");
     }
