@@ -42,12 +42,12 @@ struct opencv {
     }
 
     static Future copy(const cv::Mat &from, Image &to) {
-        return ref(from)->copyTo(to);
+        return ref(from, ImageTypeSpec::isFixedPoint(to.dataType))->copyTo(to);
     }
 
     static Future copy(Image &from, cv::Mat &to) {
         if (to.empty()) to = emptyLike(from);
-        return ref(to)->copyFrom(from);
+        return ref(to, ImageTypeSpec::isFixedPoint(from.dataType))->copyFrom(from);
     }
 
     static ImageTypeSpec convertSpec(const cv::Mat &image, bool preferFixedPoint = false) {
