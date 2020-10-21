@@ -457,10 +457,6 @@ public:
         glBindVertexArray(0); // Has to happen before unbinding other buffers
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        #ifndef __APPLE__
-            glBindVertexArray(0);
-            CHECK_ERROR(__FUNCTION__);
-        #endif
 
         aVertexData = glGetAttribLocation(program.getId(), "a_vertexData");
     }
