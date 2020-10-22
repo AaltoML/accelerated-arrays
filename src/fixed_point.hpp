@@ -10,7 +10,6 @@ template <class T> struct FixedPoint {
 
     FixedPoint() : value(0) {}
     FixedPoint(double f) : value(fromFloat(f)) {}
-    FixedPoint(const FixedPoint &other) : value(other.value) {}
     operator double() const { return toFloat(); }
     operator float() const { return toFloat(); }
 
