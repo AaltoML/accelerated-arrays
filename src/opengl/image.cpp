@@ -44,7 +44,9 @@ public:
 
     FrameBuffer &getFrameBuffer() final {
         aa_assert(false && "not supported");
-        return *reinterpret_cast<FrameBuffer*>(0);
+        // nullptr dereference gets a warning as UB, let's try another
+        // address :)
+        return *reinterpret_cast<FrameBuffer*>(1);
     }
 };
 
