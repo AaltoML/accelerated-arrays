@@ -75,18 +75,33 @@ Shader<NAry>::Builder fill(const FillSpec &spec, const ImageTypeSpec &imageSpec)
 Shader<Unary>::Builder rescale(const RescaleSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) {
     std::string fragmentShaderBody;
     {
+        // ((v_texCoord * u_outSize - 0.5) * alpha + trans * texSize + 0.5) / texSize
+        // = (v_texCoord * u_outSize * alpha + 0.5 * (1 - alpha)) / texSize + trans
+        // = v_texCoord * u_outSize * alpha / texSize + 0.5 * (1 - alpha) / texSize + trans
+        // = v_texCoord * scale + trans1
+        // => scale = u_outSize * alpha / texSize => alpha = scale * texSize / u_outSize
+        // => trans1 = trans + 0.5 * (1 - alpha) / texSize
+        //           = trans + 0.5 * (1 - scale * texSize / u_outSize) / texSize
+        //           = trans + 0.5 * (1 / texSize - scale / u_outSize)
+        //           = trans + pixCenterOffset
+
         std::ostringstream oss;
         const auto swiz = glsl::swizzleSubset(inSpec.channels);
         oss << "const vec2 scale = vec2(" << spec.xScale << ", " << spec.yScale << ");\n"
             << "const vec2 trans = vec2(" << spec.xTranslation << ", " << spec.yTranslation << ");\n"
             << "void main() {\n"
+            << "vec2 pixCenterOffset = 0.5 * (1.0 / vec2(textureSize(u_texture, 0)) - scale / vec2(u_outSize));\n"
             << "outValue = " << getGlslVecType(outSpec)
-            << "(texture(u_texture, scale * v_texCoord + trans)."
+            << "(texture(u_texture, scale * v_texCoord + trans + pixCenterOffset)."
             << glsl::swizzleSubset(outSpec.channels)
             << ");\n"
             << "}\n";
 
         fragmentShaderBody = oss.str();
+    }
+
+    if (spec.interpolation == Image::Interpolation::LINEAR && ImageTypeSpec::isIntegerType(inSpec.dataType)) {
+        log_warn("Using LINEAR interpolation with integer GL texture data types does not work in rescale (falls back to NEAREST)");
     }
 
     return [fragmentShaderBody, inSpec, outSpec, spec]() {
