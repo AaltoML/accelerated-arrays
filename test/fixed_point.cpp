@@ -2,7 +2,6 @@
 #include <cmath>
 
 #include "fixed_point.hpp"
-#include "log_and_assert.hpp"
 
 TEST_CASE( "Unsigned fixed point", "[accelerated-arrays]" ) {
     using namespace accelerated;

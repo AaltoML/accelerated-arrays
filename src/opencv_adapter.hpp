@@ -10,7 +10,7 @@
 #include "future.hpp"
 #include "image.hpp"
 #include "cpu/image.hpp"
-#include "log_and_assert.hpp"
+#include "assert.hpp"
 
 namespace accelerated {
 

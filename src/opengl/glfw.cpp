@@ -1,5 +1,7 @@
 #include "operations.hpp"
 #include "adapters.hpp"
+#include "../assert.hpp"
+#include "../log.hpp"
 
 #if defined(__APPLE__)
 #define GLFW_INCLUDE_GLCOREARB // Select gl3.h within glfw3.h

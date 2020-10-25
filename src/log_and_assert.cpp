@@ -1,4 +1,5 @@
-#include "log_and_assert.hpp"
+#include "assert.hpp"
+#include "log.hpp"
 
 #include <cstdlib>
 

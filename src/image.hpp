@@ -6,7 +6,7 @@
 
 #include "future.hpp"
 #include "fixed_point.hpp"
-#include "log_and_assert.hpp"
+#include "assert.hpp"
 
 namespace accelerated {
 struct ImageTypeSpec {

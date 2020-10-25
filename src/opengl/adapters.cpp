@@ -3,6 +3,7 @@
 
 #include "adapters.hpp"
 #include "../image.hpp"
+#include "../log.hpp"
 
 #define _THING_AS_STRING(x) #x
 #define _CHECK_ERROR_MARKER(line) __FILE__ ":" _THING_AS_STRING(line)

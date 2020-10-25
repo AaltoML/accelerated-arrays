@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "future.hpp"
-#include "log_and_assert.hpp"
+#include "assert.hpp"
 
 namespace accelerated {
 namespace {

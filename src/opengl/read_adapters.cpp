@@ -3,6 +3,7 @@
 #include "read_adapters.hpp"
 #include "glsl_helpers.hpp"
 #include "operations.hpp"
+#include "../log.hpp"
 
 namespace accelerated {
 namespace opengl {

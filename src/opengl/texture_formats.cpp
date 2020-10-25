@@ -2,6 +2,7 @@
 
 #include "adapters.hpp"
 #include "image.hpp"
+#include "../log.hpp"
 
 namespace accelerated {
 namespace opengl {

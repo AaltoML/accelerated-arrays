@@ -6,6 +6,7 @@
 #include "operations.hpp"
 #include "image.hpp"
 #include "glsl_helpers.hpp"
+#include "../log.hpp"
 
 namespace accelerated {
 namespace opengl {
