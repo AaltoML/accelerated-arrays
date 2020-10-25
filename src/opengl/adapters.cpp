@@ -560,11 +560,13 @@ public:
 
         const int interpType = getGlInterpType();
         if (interpType != 0) {
+            LOG_TRACE("set texture interpolation 0x%x", interpType);
             glTexParameteri(bindType, GL_TEXTURE_MAG_FILTER, interpType);
             glTexParameteri(bindType, GL_TEXTURE_MIN_FILTER, interpType);
         }
         const int borderType = getGlBorderType();
         if (borderType != 0) {
+            LOG_TRACE("set border type 0x%x", borderType);
             glTexParameteri(bindType, GL_TEXTURE_WRAP_S, borderType);
             glTexParameteri(bindType, GL_TEXTURE_WRAP_T, borderType);
         }

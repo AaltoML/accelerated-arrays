@@ -12,6 +12,7 @@ endif()
 
 option(WITH_OPENGL "Compile with OpenGL support" ON)
 option(WITH_OPENGL_ES "Use OpenGL ES" OFF)
+option(VERBOSE_LOGGING "Verbose logging (LOG_TRACE)" OFF)
 
 set(SRC_FILES
     src/cpu/image.cpp
@@ -109,6 +110,10 @@ endif()
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   target_compile_definitions(${LIBNAME} PRIVATE "-DACCELERATED_ARRAYS_SYNC_GLFW")
+endif()
+
+if (VERBOSE_LOGGING)
+  target_compile_definitions(${LIBNAME} PRIVATE "-DACCELERATED_ARRAYS_LOG_TRACE")
 endif()
 
 # Note, also consider using these flags
