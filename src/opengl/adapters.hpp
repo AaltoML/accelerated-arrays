@@ -29,6 +29,7 @@ int getCpuFormat(const ImageTypeSpec &spec);
 int getReadPixelFormat(const ImageTypeSpec &spec);
 int getCpuType(const ImageTypeSpec &spec);
 int getBindType(const ImageTypeSpec &spec);
+std::string getGlslPrecision(const ImageTypeSpec &spec);
 std::string getGlslSamplerType(const ImageTypeSpec &spec);
 std::string getGlslScalarType(const ImageTypeSpec &spec);
 std::string getGlslVecType(const ImageTypeSpec &spec);

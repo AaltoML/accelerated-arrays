@@ -164,6 +164,29 @@ int getCpuFormat(const ImageTypeSpec &spec) {
     return -1;
 }
 
+std::string getGlslPrecision(const ImageTypeSpec &spec) {
+    #define X(x) LOG_TRACE("getGlslPrecision:%s", x); return x
+    switch (spec.dataType) {
+        case ImageTypeSpec::DataType::UINT8: X("lowp");
+        case ImageTypeSpec::DataType::SINT8: X("lowp");
+        case ImageTypeSpec::DataType::UINT16: X("highp");
+        case ImageTypeSpec::DataType::SINT16: X("highp");
+        case ImageTypeSpec::DataType::UINT32: X("highp");
+        case ImageTypeSpec::DataType::SINT32: X("highp");
+        case ImageTypeSpec::DataType::FLOAT32: X("highp");
+        case ImageTypeSpec::DataType::UFIXED8: X("lowp");
+        case ImageTypeSpec::DataType::SFIXED8: X("lowp");
+        case ImageTypeSpec::DataType::UFIXED16: X("highp");
+        case ImageTypeSpec::DataType::SFIXED16: X("highp");
+        case ImageTypeSpec::DataType::UFIXED32: X("highp");
+        case ImageTypeSpec::DataType::SFIXED32: X("highp");
+        default: break;
+    }
+    #undef X
+    aa_assert(false);
+    return "";
+}
+
 std::string getGlslSamplerType(const ImageTypeSpec &spec) {
     if (spec.storageType == ImageTypeSpec::StorageType::GPU_OPENGL_EXTERNAL) {
         aa_assert(spec.dataType == ImageTypeSpec::DataType::UFIXED8);

@@ -655,7 +655,10 @@ private:
         oss << "layout(location = 0) out " << getGlslVecType(output) << " outValue;\n";
 
         for (std::size_t i = 0; i < inputs.size(); ++i) {
-            oss << "uniform " << getGlslSamplerType(inputs.at(i)) << " " << textureName(i, inputs.size()) << ";\n";
+            oss << "uniform "
+                << getGlslPrecision(inputs.at(i)) << " "
+                << getGlslSamplerType(inputs.at(i)) << " "
+                << textureName(i, inputs.size()) << ";\n";
         }
 
         oss << "uniform ivec2 " << outSizeName() << ";\n";
