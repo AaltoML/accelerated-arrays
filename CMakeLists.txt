@@ -96,7 +96,11 @@ if (WITH_OPENGL)
   endif()
 endif()
 
-add_library(${LIBNAME} ${SRC_FILES})
+if (IOS)
+  add_library(${LIBNAME} SHARED ${SRC_FILES})
+else()
+  add_library(${LIBNAME} ${SRC_FILES})
+endif()
 # TODO: public header part
 target_link_libraries(${LIBNAME} ${LIBRARY_DEPS})
 
