@@ -133,7 +133,7 @@ Shader<Unary>::Builder swizzle(const SwizzleSpec &spec, const ImageTypeSpec &inS
         std::ostringstream oss;
         const std::string swizFull = glsl::swizzleSubset(4);
         std::string swizIn, swizOut, constVec;
-        bool anyConst;
+        bool anyConst = false;
 
         {
             std::ostringstream swizInS, swizOutS, constVecS;
