@@ -3,96 +3,34 @@
 namespace accelerated {
 namespace cpu {
 namespace {
-class ImageBase : public Image {
-private:
-    inline int index(int x, int y) const {
-        return (y * width + x) * channels * bytesPerChannel();
-    }
+bool isCopyCompatible(const ::accelerated::Image &a, const ::accelerated::Image &b) {
+    // TODO: fixed point vs integer types would work OK in direct copy too
+    return a.channels == b.channels &&
+        a.dataType == b.dataType &&
+        a.width == b.width &&
+        a.height == b.height;
+}
 
-    bool isCopyCompatible(::accelerated::Image &other) const {
-        // TODO: fixed point vs integer types would work OK in direct copy too
-        return other.channels == channels &&
-            other.dataType == dataType &&
-            other.width == width &&
-            other.height == height;
-    }
-
-protected:
-    std::uint8_t *data = nullptr;
-
-    void get(int x, int y, std::uint8_t *targetArray) const final {
-        const auto bpc = bytesPerChannel();
-        for (int i = 0; i < channels; ++i) get(x, y, i, targetArray + i * bpc);
-    }
-
-    void set(int x, int y, const std::uint8_t *srcArray) final {
-        const auto bpc = bytesPerChannel();
-        for (int i = 0; i < channels; ++i) set(x, y, i, srcArray + i * bpc);
-    }
-
-    void get(int x, int y, int channel, std::uint8_t *targetArray) const final {
-        ACCELERATED_ARRAYS_PIXEL_ASSERT(channel >= 0 && channel < channels);
-        const auto bpc = bytesPerChannel();
-        const auto offset = index(x, y) + channel * bpc;
-        for (std::size_t i = 0; i < bpc; ++i) targetArray[i] = data[i + offset];
-    }
-
-    void set(int x, int y, int channel, const std::uint8_t *srcArray) final {
-        ACCELERATED_ARRAYS_PIXEL_ASSERT(channel >= 0 && channel < channels);
-        const auto bpc = bytesPerChannel();
-        const auto offset = index(x, y) + channel * bpc;
-        for (std::size_t i = 0; i < bpc; ++i) data[i + offset] = srcArray[i];
-    }
-
-public:
-    Future readRaw(std::uint8_t *outputData) final {
-        std::memcpy(outputData, data, size());
-        return Future::instantlyResolved();
-    }
-
-    Future writeRaw(const std::uint8_t *inputData) final {
-        std::memcpy(data, inputData, size());
-        return Future::instantlyResolved();
-    }
-
-    Future copyFrom(::accelerated::Image &other) final {
-        aa_assert(isCopyCompatible(other));
-        return other.readRaw(data);
-    }
-
-    Future copyTo(::accelerated::Image &other) const final {
-        aa_assert(isCopyCompatible(other));
-        return other.writeRaw(data);
-    }
-
-    std::uint8_t *getDataRaw() final {
-        return data;
-    }
-
-    ImageBase(int w, int h, int channels, DataType dtype) :
-        Image(w, h, channels, dtype)
-    {}
-};
-
-class ImageWithData final : public ImageBase {
+class ImageWithData final : public Image {
 private:
     std::vector<std::uint8_t> dataVec;
 
 public:
     ImageWithData(int w, int h, int channels, DataType dtype) :
-        ImageBase(w, h, channels, dtype)
+        Image(w, h, channels, dtype)
     {
         dataVec.resize(size());
         data = dataVec.data();
     }
 };
 
-class ImageReference final : public ImageBase {
+class ImageReference final : public Image {
 public:
     ImageReference(int w, int h, int channels, DataType dtype, std::uint8_t *extData) :
-        ImageBase(w, h, channels, dtype)
+        Image(w, h, channels, dtype)
     {
         data = extData;
+        aa_assert(reinterpret_cast<std::uintptr_t>(data) % bytesPerChannel() == 0);
     }
 };
 
@@ -139,18 +77,42 @@ bool Image::applyBorder(int &x, int &y, Border border) const {
     return applyBorder1D(x, width, border) && applyBorder1D(y, height, border);
 }
 
+Future Image::readRaw(std::uint8_t *outputData) {
+    std::memcpy(outputData, data, size());
+    return Future::instantlyResolved();
+}
+
+Future Image::writeRaw(const std::uint8_t *inputData) {
+    std::memcpy(data, inputData, size());
+    return Future::instantlyResolved();
+}
+
+Future Image::copyFrom(::accelerated::Image &other) {
+    aa_assert(isCopyCompatible(*this, other));
+    return other.readRaw(data);
+}
+
+Future Image::copyTo(::accelerated::Image &other) const {
+    aa_assert(isCopyCompatible(*this, other));
+    return other.writeRaw(data);
+}
+
+std::uint8_t *Image::getDataRaw() {
+    return data;
+}
+
 #define X(dtype) \
 template<> dtype Image::get<dtype>(int x, int y, int channel) const { \
     checkType<dtype>(); \
-    dtype result; \
     ACCELERATED_ARRAYS_PIXEL_ASSERT(x >= 0 && y >= 0 && x < width && y < height); \
-    get(x, y, channel, reinterpret_cast<std::uint8_t*>(&result)); \
-    return result; \
+    const dtype* src = reinterpret_cast<const dtype*>(__builtin_assume_aligned(data, sizeof(dtype))); \
+    return src[(y * width + x) * channels + channel]; \
 } \
 template<> void Image::set<dtype>(int x, int y, int channel, dtype value) { \
     checkType<dtype>(); \
     ACCELERATED_ARRAYS_PIXEL_ASSERT(x >= 0 && y >= 0 && x < width && y < height); \
-    set(x, y, channel, reinterpret_cast<const std::uint8_t*>(&value)); \
+    dtype* target = reinterpret_cast<dtype*>(__builtin_assume_aligned(data, sizeof(dtype))); \
+    target[(y * width + x) * channels + channel] = value; \
 }
 ACCELERATED_IMAGE_FOR_EACH_NON_FLOAT_TYPE(X)
 #undef X
@@ -158,9 +120,9 @@ ACCELERATED_IMAGE_FOR_EACH_NON_FLOAT_TYPE(X)
 template<> float Image::get<float>(int x, int y, int channel) const {
     switch (dataType) {
     case DataType::FLOAT32: {
-        float result;
-        get(x, y, channel, reinterpret_cast<std::uint8_t*>(&result));
-        return result;
+        ACCELERATED_ARRAYS_PIXEL_ASSERT(x >= 0 && y >= 0 && x < width && y < height);
+        const float* src = reinterpret_cast<const float*>(__builtin_assume_aligned(data, sizeof(float)));
+        return src[(y * width + x) * channels + channel];
     }
     #define X(type, name) case name: return static_cast<double>(get<type>(x, y, channel));
     ACCELERATED_IMAGE_FOR_EACH_NON_FLOAT_NAMED_TYPE(X)
@@ -174,7 +136,8 @@ template<> void Image::set<float>(int x, int y, int channel, float value) {
     switch (dataType) {
     case DataType::FLOAT32: {
         ACCELERATED_ARRAYS_PIXEL_ASSERT(x >= 0 && y >= 0 && x < width && y < height);
-        set(x, y, channel, reinterpret_cast<const std::uint8_t*>(&value));
+        float* target = reinterpret_cast<float*>(__builtin_assume_aligned(data, sizeof(float)));
+        target[(y * width + x) * channels + channel] = value;
         return;
     }
     #define X(type, name) case name: set<type>(x, y, channel, type(value)); return;
@@ -200,7 +163,10 @@ std::unique_ptr<Image> Image::createReference(int w, int h, int channels, DataTy
     return std::unique_ptr<Image>(new ImageReference(w, h, channels, dtype, data));
 }
 
-Image::Image(int w, int h, int ch, DataType dtype) : ::accelerated::Image(w, h, getSpec(ch, dtype)) {}
+Image::Image(int w, int h, int ch, DataType dtype) :
+    ::accelerated::Image(w, h, getSpec(ch, dtype)),
+    data(nullptr)
+{}
 
 }
 }
