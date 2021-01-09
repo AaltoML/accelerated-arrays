@@ -17,7 +17,7 @@ public:
         checkType<T>();
         ACCELERATED_ARRAYS_PIXEL_ASSERT(channels == N);
         std::array<T, N> result;
-        get(x, y, reinterpret_cast<std::uint8_t*>(&result));
+        for (std::size_t i = 0; i < N; ++i) result[i] = get<T>(x, y, i);
         return result;
     }
 
@@ -25,7 +25,7 @@ public:
         checkType<T>();
         ACCELERATED_ARRAYS_PIXEL_ASSERT(channels == N);
         ACCELERATED_ARRAYS_PIXEL_ASSERT(x >= 0 && y >= 0 && x < width && y < height);
-        set(x, y, reinterpret_cast<const std::uint8_t*>(&array));
+        for (std::size_t i = 0; i < N; ++i) set<T>(x, y, i, array[i]);
     }
 
     template<class T> T get(int x, int y, int channel) const;
@@ -46,27 +46,30 @@ public:
     }
 
     // single-channel shorthands
-    template<class T> T get(int x, int y) const {
+    template<class T> inline T get(int x, int y) const {
         ACCELERATED_ARRAYS_PIXEL_ASSERT(channels == 1);
         return get<T>(x, y, 0);
     }
 
-    template<class T> void set(int x, int y, T value) {
+    template<class T> inline void set(int x, int y, T value) {
         ACCELERATED_ARRAYS_PIXEL_ASSERT(channels == 1);
         return set<T>(x, y, 0, value);
     }
 
-    template<class T> T get(int x, int y, Border border) const {
+    template<class T> inline T get(int x, int y, Border border) const {
         if (!applyBorder(x, y, border)) return T(double(0));
         return get<T>(x, y);
     }
 
     // adapters for copying to/from possibly non-CPU images
-    virtual Future copyFrom(::accelerated::Image &other) = 0;
-    virtual Future copyTo(::accelerated::Image &other) const = 0;
+    Future copyFrom(::accelerated::Image &other);
+    Future copyTo(::accelerated::Image &other) const;
+
+    Future readRaw(std::uint8_t *outputData) final;
+    Future writeRaw(const std::uint8_t *inputData) final;
 
     /** Get pointer to raw data, use sparingly */
-    virtual std::uint8_t *getDataRaw() = 0;
+    std::uint8_t *getDataRaw();
 
     /** Same as getRawData but checks that the type is what you expect */
     template <class T> T *getData() {
@@ -93,13 +96,9 @@ public:
 
 protected:
     bool applyBorder(int &x, int &y, Border border) const;
-
     Image(int w, int h, int channels, DataType dtype);
 
-    virtual void get(int x, int y, std::uint8_t *targetArray) const = 0;
-    virtual void set(int x, int y, const std::uint8_t *srcArray) = 0;
-    virtual void get(int x, int y, int channel, std::uint8_t *targetArray) const = 0;
-    virtual void set(int x, int y, int channel, const std::uint8_t *srcArray) = 0;
+    std::uint8_t *data;
 };
 
 #define X(dtype) \
