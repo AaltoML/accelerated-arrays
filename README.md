@@ -14,7 +14,7 @@ An `Image` represents a mutable array of data with dimensions `image.width` × `
 #### Channels
 
 The available channel numbers correspond to the available vector types in the GLSL language.
-Even thought they most traditionally represent the color channels R,G,B, and A, they can be used for any data. For example, a 2-channel image can be used to represent optical flow, where each pixel has components Δx and Δy.
+Even though they most traditionally represent the color channels R,G,B, and A, they can be used for any data. For example, a 2-channel image can be used to represent optical flow, where each pixel has components Δx and Δy.
 
 #### Data types
 
@@ -28,11 +28,11 @@ All scalars in the image have the same data type. The data types can be referred
 
 The `Image` may be backed either by
  * An array of data in CPU-side RAM (`cpu::Image` class / `Image::StorageType::CPU`). In this case, it can be
-   accessed directly and syncrhonously through methods like `image.get<float>(x, y, channel)`
+   accessed directly and synchronously through methods like `image.get<float>(x, y, channel)`
  * An OpenGL texture (`opengl::Image` / `Image::StorageType::GPU_OPENGL_*`). In this case, the pixels are not directly accessible from C++.
 
 The type is available in `image.storageType`.
-The pixel data of an image can be transferred from/to normal CPU RAM using the asyncrhonous `read` and `write` operations, but these may not
+The pixel data of an image can be transferred from/to normal CPU RAM using the asynchronous `read` and `write` operations, but these may not
 be available for all GPU textures and in some cases, you may have to write the data to another type of texture before reading it, especially on OpenGL ES.
 
 ### Type spec
@@ -41,7 +41,7 @@ be available for all GPU textures and in some cases, you may have to write the d
 
 ### Function
 
-Images are primarily modified by `Function`s, which should be always thought of as asynchronous operations. A function takes zero (`Nullary`), one (`Unary`), or more input `Image`s and writes to a single output `Image`.
+Images are primarily modified by `Function`s, which should be always thought of as asynchronous operations. A function takes zero (`Nullary`), one (`Unary`), or more (`NAry`) input `Image`s and writes to a single output `Image`.
 
 The return value from calling the function, available on the CPU side is a `Future`. It is possible to block the current thread and wait for the operation represented by the function to complete by calling the `.wait()` method of the returned future. However, calling wait is not the only option and something you want to avoid doing in the OpenGL thread.
 
@@ -49,9 +49,9 @@ A generic `Function` is assumed to be `NAry` and currently the easiest way of ca
 
 ### Processor
 
-`Processor`s are in charge of completing `Function`s or other asyncronous operations. They are given as references to factories (see below) or can be used directly for enqueuing custom `std::function<void()>`s as `processor.enqueue([]() { /* do ssomething */ })` in a thread-safe manner.
+`Processor`s are in charge of completing `Function`s or other asynchronous operations. They are given as references to factories (see below) or can be used directly for enqueuing custom `std::function<void()>`s as `processor.enqueue([]() { /* do something */ })` in a thread-safe manner.
 
-The following options are available for creating a processor
+The following options are available for creating a processor:
 
  * `Processor::createInstant())`: dummy processor that runs every operation right away. Makes sense for certain CPU-based processing and testing.
  * `Processor::createThreadPool(n)`: a thread pool with `n` threads. With `n=1` the enqueued operations are processed in order, which is convenient in many cases.
@@ -77,10 +77,22 @@ The following options are available for creating a processor
 
 `Function`s are defined using an "operation factory". Two implementations exist:
 
- * `cpu::operations::createFactory(Processor &)` for CPU operations. Has a method `wrap` for converting synchronous operations to `Functions`
- * `opengl::Image::createFactory(Processor &)` for GPU operations. Has a method `wrapShader(fragShaderBody, inputTypeSpec, outputTypeSpec)` for creating GLSL shader operations directly.
+ * `cpu::operations::createFactory(Processor &)` for CPU operations. Has a method `wrap` for converting synchronous operations to `Functions`.
+ * `opengl::operations::createFactory(Processor &)` for GPU operations. Has a method `wrapShader(fragShaderBody, inputTypeSpec, outputTypeSpec)` for creating GLSL shader operations directly.
 
-Certain "standard" functions are avaiable for both implementations through the `operations::StandardFactory` interface. The standard operations are usually defined using a "spec" / "builder" and the `ImageTypeSpec` (part)
+Certain "standard" functions are available for both implementations through the `operations::StandardFactory` interface. The standard operations are usually defined using a "spec" / "builder" and the `ImageTypeSpec` (part).
+
+## Building
+
+```bash
+mkdir target
+cd target
+cmake ..
+make
+./test/run-tests
+```
+
+See the `CMakeLists.txt` files for available options.
 
 ## Examples
 
