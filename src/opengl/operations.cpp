@@ -44,6 +44,10 @@ Shader<NAry>::Builder defaultNAryBuilder(std::string fragmentShaderBody, const s
                 auto &input = *inputs[i];
                 aa_assert(input == inSpecs.at(i));
                 textureBinders->at(i) = &pipeline.bindTexture(i, input.getTextureId());
+                auto border = input.getBorder();
+                auto interpolation = input.getInterpolation();
+                if (border != Image::Border::UNDEFINED) pipeline.setTextureBorder(i, border);
+                if (interpolation != Image::Interpolation::UNDEFINED) pipeline.setTextureInterpolation(i, interpolation);
                 textureBinders->at(i)->bind();
             }
             pipeline.call(output.getFrameBuffer());

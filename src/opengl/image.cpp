@@ -11,13 +11,39 @@
 namespace accelerated {
 namespace opengl {
 namespace {
-class ExternalImage : public Image {
+class ImageBase : public Image {
+private:
+    Border border = Border::UNDEFINED;
+    Interpolation interpolation = Interpolation::UNDEFINED;
+
+protected:
+    ImageBase(int w, int h, const ImageTypeSpec &spec) : Image(w, h, spec) {}
+
+public:
+    Border getBorder() const final {
+        return border;
+    }
+
+    void setBorder(Border b) final {
+        border = b;
+    }
+
+    Interpolation getInterpolation() const final {
+        return interpolation;
+    }
+
+    void setInterpolation(Interpolation i) final {
+        interpolation = i;
+    }
+};
+
+class ExternalImage : public ImageBase {
 private:
     int textureId;
 
 public:
     ExternalImage(int w, int h, int textureId, const ImageTypeSpec &spec)
-    : Image(w, h, spec), textureId(textureId) {}
+    : ImageBase(w, h, spec), textureId(textureId) {}
 
     int getTextureId() const final {
         return textureId;
@@ -131,14 +157,14 @@ public:
     }
 };
 
-class FrameBufferManager::Reference : public Image {
+class FrameBufferManager::Reference : public ImageBase {
 private:
     FrameBufferManager &manager;
     std::function<Future(std::uint8_t*)> readAdpater;
 
 public:
     Reference(int w, int h, const ImageTypeSpec &spec, FrameBufferManager &m, std::unique_ptr<FrameBuffer> existing)
-    : Image(w, h, spec), manager(m)
+    : ImageBase(w, h, spec), manager(m)
     {
         ImageTypeSpec s = spec;
         std::shared_ptr<FrameBuffer> fb = std::move(existing);

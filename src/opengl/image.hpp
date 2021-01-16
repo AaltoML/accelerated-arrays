@@ -7,9 +7,38 @@ namespace opengl {
 struct FrameBuffer;
 class Image : public ::accelerated::Image {
 public:
+    /** Get OpenGL texture ID for this image */
     virtual int getTextureId() const = 0;
+    /** Can this image be read directly or in GL ES an adapter required? */
     virtual bool supportsDirectRead() const = 0;
+    /** Can this image be written directly or is an adapter required? */
     virtual bool supportsDirectWrite() const = 0;
+
+    /**
+     * Getter for texture border type. Initially UNDEFINED, which is fine
+     * for operations that do not attempt to access the image outside its
+     * boundaries.
+     */
+    virtual Border getBorder() const = 0;
+    /**
+     * Setter for texture border type. The border type can be set either
+     * per image or as part of some operations::StandardFactory specs,
+     * which override the per-image setting.
+     */
+    virtual void setBorder(Border b) = 0;
+
+    /**
+     * Getter for interpolation. Initially UNDEFINED, which is fine as long
+     * as operations on this image do not attempt to read the image at
+     * fractional pixel coordinates (e.g., only use texelFetch).
+     */
+    virtual Interpolation getInterpolation() const = 0;
+    /**
+     * Setter for interpolation type. Interpolation type can be set either
+     * per image or as part of some operations::StandardFactor specs, which
+     * override the per-image setting.
+     */
+    virtual void setInterpolation(Interpolation i) = 0;
 
     virtual FrameBuffer &getFrameBuffer() = 0;
 
