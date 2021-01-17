@@ -35,12 +35,6 @@ public:
     void setInterpolation(Interpolation i) final {
         interpolation = i;
     }
-
-    std::unique_ptr<::accelerated::Image> createROI(int x0, int y0, int roiWidth, int roiHeight) final {
-        (void)x0; (void)y0; (void)roiWidth; (void)roiHeight;
-        aa_assert(false && "not supported");
-        return {};
-    }
 };
 
 class ExternalImage : public ImplementationBase {
@@ -80,6 +74,12 @@ public:
         // nullptr dereference gets a warning as UB, let's try another
         // address :)
         return *reinterpret_cast<FrameBuffer*>(1);
+    }
+
+    std::unique_ptr<::accelerated::Image> createROI(int x0, int y0, int roiWidth, int roiHeight) final {
+        (void)x0; (void)y0; (void)roiWidth; (void)roiHeight;
+        aa_assert(false && "not supported");
+        return {};
     }
 };
 
@@ -181,6 +181,18 @@ public:
         });
     }
 
+    // ROI
+    Reference(int x0, int y0, int w, int h, FrameBufferManager &m, Reference &existing)
+    : ImplementationBase(w, h, existing), manager(m)
+    {
+        LOG_TRACE("created buffer reference %p (ROI)", (void*)this);
+        manager.addFrameBuffer(this, [x0, y0, w, h, &m, &existing]() {
+            auto targetFB = m.getFrameBuffer(&existing);
+            aa_assert(targetFB && "failed to create ROI frame buffer, target does not exist");
+            return std::shared_ptr<FrameBuffer>(targetFB->createROI(x0, y0, w, h));
+        });
+    }
+
     ~Reference() {
         LOG_TRACE("destroyed buffer reference %p", (void*)this);
         manager.removeFrameBuffer(this);
@@ -243,6 +255,10 @@ public:
         auto fb = manager.getFrameBuffer(this);
         aa_assert(fb && "frame buffer object not created yet");
         return *fb;
+    }
+
+    std::unique_ptr<::accelerated::Image> createROI(int x0, int y0, int roiWidth, int roiHeight) final {
+        return std::unique_ptr<::accelerated::Image>(new Reference(x0, y0, roiWidth, roiHeight, manager, *this));
     }
 };
 

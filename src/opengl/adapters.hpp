@@ -75,14 +75,16 @@ struct FrameBuffer : Destroyable, Binder::Target {
     static std::unique_ptr<FrameBuffer> createReference(int existingFboId, int w, int h, const ImageTypeSpec &spec);
     static std::unique_ptr<FrameBuffer> createScreenReference(int w, int h);
 
-    virtual int getWidth() const = 0;
-    virtual int getHeight() const = 0;
+    virtual std::unique_ptr<FrameBuffer> createROI(int x0, int y0, int w, int h) = 0;
+
+    virtual int getViewportWidth() const = 0;
+    virtual int getViewportHeight() const = 0;
 
     // these bind the frame buffer automatically
     virtual void readPixels(uint8_t *pixels) = 0;
     virtual void writePixels(const uint8_t *pixels) = 0;
 
-    /** set glViewport to the full extent of this buffer */
+    /** set glViewport to the viewport defined for this frame buffer (reference) */
     virtual void setViewport() = 0;
 
     virtual int getId() const = 0;

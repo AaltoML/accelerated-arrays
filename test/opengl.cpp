@@ -89,6 +89,14 @@ TEST_CASE( "fixed-point image", "[accelerated-arrays-opengl]" ) {
     operations::callNullary(fill, *image).wait();
     image->readRawFixedPoint(outBuf).wait();
     REQUIRE(int(outBuf.back()) == 204);
+
+    std::vector<IntType> roiBuf;
+    roiBuf.resize(4*5*2, 205);
+    image->createROI(2, 3, 4, 5)->writeRawFixedPoint(roiBuf).wait();
+
+    image->readRawFixedPoint(outBuf).wait();
+    REQUIRE(int(outBuf.back()) == 204);
+    REQUIRE(int(outBuf.at((3 * 19 + 2) * 2)) == 205);
 }
 
 #ifndef ACCELERATED_ARRAYS_USE_OPENGL_ES
@@ -201,12 +209,15 @@ TEST_CASE( "GLFW draw to window", "[accelerated-arrays-opengl]" ) {
     auto ops = opengl::operations::createFactory(*processor);
 
     auto screen = factory->wrapScreen(width, height);
+    auto region = screen->createROI(int(width*0.15), int(height*0.25), int(width*0.6), int(height*0.4));
     auto fill = ops->fill({ 1, 0, 0.5, 1 }).build(*screen);
+    auto fill2 = ops->fill({ 0.6, 0.1, 0.4, 1 }).build(*region);
 
     REQUIRE(wnd == nullptr);
     int itr = 0;
     do {
-        operations::callNullary(fill, *screen).wait();
+        operations::callNullary(fill, *screen);
+        operations::callNullary(fill2, *region).wait();
         processor->enqueue([&wnd]() {
             REQUIRE(wnd != nullptr);
             glfwSwapBuffers(wnd);

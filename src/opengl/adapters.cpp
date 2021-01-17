@@ -143,7 +143,18 @@ private:
     int width, height;
     ImageTypeSpec spec;
     int id;
-    std::unique_ptr<Texture> texture;
+    std::shared_ptr<Texture> texture;
+
+    const struct Viewport {
+        int x0, y0, width, height;
+    } viewport;
+
+    bool fullViewport() const {
+        return viewport.x0 == 0 &&
+            viewport.y0 == 0 &&
+            viewport.width == width &&
+            viewport.height == height;
+    }
 
     bool isScreen() const {
         // hacky
@@ -151,12 +162,14 @@ private:
     }
 
 public:
-    FrameBufferImplementation(int w, int h, const ImageTypeSpec &spec, int existingFboId = -1) :
+    FrameBufferImplementation(int w, int h, const ImageTypeSpec &spec, int existingFboId = -1, const Viewport *viewportPtr = nullptr) :
         width(w), height(h), spec(spec), id(existingFboId),
-        texture(existingFboId < 0 ? new TextureImplementation(w, h, spec) : nullptr)
+        texture(existingFboId < 0 ? new TextureImplementation(w, h, spec) : nullptr),
+        viewport(viewportPtr == nullptr ? Viewport { 0, 0, w, h } : *viewportPtr)
     {
+        aa_assert(viewport.x0 >= 0 && viewport.y0 >= 0 && viewport.width <= width && viewport.height <= height);
         if (existingFboId >= 0) {
-            log_debug("creating a reference to an existing frame buffer object %d", existingFboId);
+            LOG_TRACE("creating a reference to an existing frame buffer object %d", existingFboId);
         } else {
             GLuint genId;
             glGenFramebuffers(1, &genId);
@@ -180,25 +193,39 @@ public:
 
     void destroy() final {
         if (texture) {
-            if (id != 0) {
-                LOG_TRACE("destroying frame buffer %d", id);
-                GLuint uid = id;
-                glDeleteFramebuffers(1, &uid);
+            // this is a bit messy
+            if (texture.unique()) {
+                if (id != 0) {
+                    LOG_TRACE("destroying frame buffer %d", id);
+                    GLuint uid = id;
+                    glDeleteFramebuffers(1, &uid);
+                }
+                id = 0;
+                texture->destroy();
+            } else {
+                LOG_TRACE("not destroying shared texture %d", id);
+                texture.reset();
             }
-            id = 0;
-            texture->destroy();
         } else {
             LOG_TRACE("not destroying external frame buffer %d", id);
         }
     }
 
-    int getWidth() const final { return width; }
-    int getHeight() const final { return height; }
+    int getViewportWidth() const final { return viewport.width; }
+    int getViewportHeight() const final { return viewport.height; }
 
     ~FrameBufferImplementation() {
-        if (texture && id != 0) {
+        if (texture && texture.unique() && id != 0) {
             log_warn("leaking frame buffer %d", id);
         }
+    }
+
+    std::unique_ptr<FrameBuffer> createROI(int x0, int y0, int w, int h) final {
+        Viewport view { x0, y0, w, h };
+        LOG_TRACE("creating a ROI from frame buffer %d", id);
+        auto *r = new FrameBufferImplementation(w, h, spec, id, &view);
+        r->texture = texture;
+        return std::unique_ptr<FrameBuffer>(r);
     }
 
     void bind() final {
@@ -218,13 +245,13 @@ public:
     }
 
     void setViewport() final {
-        LOG_TRACE("glViewport(0, 0, %d, %d)", width, height);
-        glViewport(0, 0, width, height);
+        LOG_TRACE("glViewport(%d, %d, %d, %d)", viewport.x0, viewport.y0, viewport.width, viewport.height);
+        glViewport(viewport.x0, viewport.y0, viewport.width, viewport.height);
         CHECK_ERROR(__FUNCTION__);
     }
 
     void readPixels(uint8_t *pixels) final {
-        LOG_TRACE("reading frame buffer %d", id);
+        LOG_TRACE("reading frame buffer %d");
         Binder binder(*this);
 
         if (isScreen()) {
@@ -245,7 +272,7 @@ public:
 
         // Note: check this
         // https://www.khronos.org/opengl/wiki/Common_Mistakes#Slow_pixel_transfer_performance
-        glReadPixels(0, 0, width, height, getReadPixelFormat(spec), getCpuType(spec), pixels);
+        glReadPixels(viewport.x0, viewport.y0, viewport.width, viewport.height, getReadPixelFormat(spec), getCpuType(spec), pixels);
 
         if (!isScreen()) {
             aa_assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
@@ -269,12 +296,22 @@ public:
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         CHECK_ERROR(__FUNCTION__);
 
-        glTexImage2D(GL_TEXTURE_2D, 0,
-            getTextureInternalFormat(spec),
-            width, height, 0,
-            getCpuFormat(spec),
-            getCpuType(spec),
-            pixels);
+        if (fullViewport()) {
+            glTexImage2D(GL_TEXTURE_2D, 0,
+                getTextureInternalFormat(spec),
+                width, height, 0,
+                getCpuFormat(spec),
+                getCpuType(spec),
+                pixels);
+        } else {
+            LOG_TRACE("writing a sub image of frame buffer %d", id);
+            glTexSubImage2D(GL_TEXTURE_2D, 0,
+                viewport.x0, viewport.y0,
+                viewport.width, viewport.height,
+                getCpuFormat(spec),
+                getCpuType(spec),
+                pixels);
+        }
 
         CHECK_ERROR(__FUNCTION__);
 
@@ -286,6 +323,7 @@ public:
 
     int getTextureId() const final {
         aa_assert(texture && "cannot get texture ID of external frame buffer");
+        aa_assert(fullViewport() && "cannot use ROI as a texture");
         return texture->getId();
     }
 };
@@ -723,7 +761,7 @@ public:
     }
 
     void call(FrameBuffer &frameBuffer) final {
-        const int w = frameBuffer.getWidth(), h =  frameBuffer.getHeight();
+        const int w = frameBuffer.getViewportWidth(), h =  frameBuffer.getViewportHeight();
         LOG_TRACE("setting out size uniform to %d x %d", w, h);
         glUniform2i(outSizeUniform, w, h);
 
