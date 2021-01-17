@@ -130,6 +130,13 @@ struct Image : ImageTypeSpec {
     /** Asyncronous write operation */
     virtual Future writeRaw(const std::uint8_t *inputData) = 0;
 
+    /**
+     * Create a Region-of-Interest, a reference to a region in this image.
+     * All image operations may currently not be supported for ROIs in all
+     * implementations (OpenGL vs CPU).
+     */
+    virtual std::unique_ptr<Image> createROI(int x0, int y0, int width, int height) = 0;
+
     // add some type safety wrappers
     template <class T> Future read(T *outputData) {
         aa_assert(isType<T>());

@@ -70,6 +70,7 @@ public:
 
     /** Get pointer to raw data, use sparingly */
     std::uint8_t *getDataRaw();
+    std::size_t bytesPerRow() const;
 
     /** Same as getRawData but checks that the type is what you expect */
     template <class T> T *getData() {
@@ -88,6 +89,14 @@ public:
     static std::unique_ptr<Image> createReference(
         int w, int h, int channels, DataType dtype, std::uint8_t *data);
 
+    /**
+     * Create reference to existing data with possible padding at the end of the rows.
+     * The width of the row is given in pixesls. This also guarantees the correct
+     * alignment in bytes.
+     */
+    static std::unique_ptr<Image> createReference(
+        int w, int h, int channels, DataType dtype, std::uint8_t *data, std::size_t rowWidthPixels);
+
     template <class T, int Chan> static std::unique_ptr<Image> createReference(int w, int h, T* data) {
         return createReference(w, h, Chan, getType<T>(), reinterpret_cast<std::uint8_t*>(data));
     }
@@ -97,8 +106,6 @@ public:
 protected:
     bool applyBorder(int &x, int &y, Border border) const;
     Image(int w, int h, int channels, DataType dtype);
-
-    std::uint8_t *data;
 };
 
 #define X(dtype) \

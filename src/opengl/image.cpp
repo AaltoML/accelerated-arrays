@@ -11,13 +11,13 @@
 namespace accelerated {
 namespace opengl {
 namespace {
-class ImageBase : public Image {
+class ImplementationBase : public Image {
 private:
     Border border = Border::UNDEFINED;
     Interpolation interpolation = Interpolation::UNDEFINED;
 
 protected:
-    ImageBase(int w, int h, const ImageTypeSpec &spec) : Image(w, h, spec) {}
+    ImplementationBase(int w, int h, const ImageTypeSpec &spec) : Image(w, h, spec) {}
 
 public:
     Border getBorder() const final {
@@ -35,15 +35,21 @@ public:
     void setInterpolation(Interpolation i) final {
         interpolation = i;
     }
+
+    std::unique_ptr<::accelerated::Image> createROI(int x0, int y0, int roiWidth, int roiHeight) final {
+        (void)x0; (void)y0; (void)roiWidth; (void)roiHeight;
+        aa_assert(false && "not supported");
+        return {};
+    }
 };
 
-class ExternalImage : public ImageBase {
+class ExternalImage : public ImplementationBase {
 private:
     int textureId;
 
 public:
     ExternalImage(int w, int h, int textureId, const ImageTypeSpec &spec)
-    : ImageBase(w, h, spec), textureId(textureId) {}
+    : ImplementationBase(w, h, spec), textureId(textureId) {}
 
     int getTextureId() const final {
         return textureId;
@@ -157,14 +163,14 @@ public:
     }
 };
 
-class FrameBufferManager::Reference : public ImageBase {
+class FrameBufferManager::Reference : public ImplementationBase {
 private:
     FrameBufferManager &manager;
     std::function<Future(std::uint8_t*)> readAdpater;
 
 public:
     Reference(int w, int h, const ImageTypeSpec &spec, FrameBufferManager &m, std::unique_ptr<FrameBuffer> existing)
-    : ImageBase(w, h, spec), manager(m)
+    : ImplementationBase(w, h, spec), manager(m)
     {
         ImageTypeSpec s = spec;
         std::shared_ptr<FrameBuffer> fb = std::move(existing);

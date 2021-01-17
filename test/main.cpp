@@ -58,6 +58,20 @@ TEST_CASE( "CpuImage basics", "[accelerated-arrays]" ) {
     }
 
     {
+        // Test ROI
+        auto roi = image->createROI(1, 1, 2, 1);
+        REQUIRE(roi->width == 2);
+        REQUIRE(roi->height == 1);
+        REQUIRE(roi->channels == 2);
+        REQUIRE(roi->dataType == ImageTypeSpec::DataType::SINT16);
+        REQUIRE(roi->storageType == ImageTypeSpec::StorageType::CPU);
+        const auto &cpuRoi = cpu::Image::castFrom(*roi);
+        REQUIRE(cpuRoi.get<std::int16_t>(0, 0, 0) == 9);
+        REQUIRE(cpuRoi.get<std::int16_t>(1, 0, 1) == 6);
+        REQUIRE(cpuRoi.get<std::int16_t>(-1, 0, 1, Image::Border::MIRROR) == 6);
+    }
+
+    {
         std::vector<std::int16_t> out;
         image->read(out).wait();
 

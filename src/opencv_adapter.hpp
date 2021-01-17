@@ -19,12 +19,16 @@ namespace accelerated {
 struct opencv {
     static cv::Mat ref(Image &img) {
         aa_assert(img.storageType == ImageTypeSpec::StorageType::CPU);
-        return cv::Mat(img.height, img.width, convertSpec(img), cpu::Image::castFrom(img).getDataRaw());
+        auto &cpuImg = cpu::Image::castFrom(img);
+        return cv::Mat(img.height, img.width, convertSpec(img), cpuImg.getDataRaw(), cpuImg.bytesPerRow());
     }
 
     static std::unique_ptr<cpu::Image> ref(const cv::Mat &m, bool preferFixedPoint = false) {
         const auto spec = convertSpec(m, preferFixedPoint);
-        return cpu::Image::createReference(m.cols, m.rows, spec.channels, spec.dataType, m.data);
+        auto bytesPerRow = m.step;
+        aa_assert(bytesPerRow % spec.bytesPerPixel() == 0);
+        auto pixelsPerRow = bytesPerRow / spec.bytesPerPixel();
+        return cpu::Image::createReference(m.cols, m.rows, spec.channels, spec.dataType, m.data, pixelsPerRow);
     }
 
     static cv::Mat emptyLike(const Image &img) {
@@ -42,10 +46,12 @@ struct opencv {
     }
 
     static Future copy(const cv::Mat &from, Image &to) {
+        // TODO: copy using OpenCV to support ROIs
         return ref(from, ImageTypeSpec::isFixedPoint(to.dataType))->copyTo(to);
     }
 
     static Future copy(Image &from, cv::Mat &to) {
+        // TODO: copy using OpenCV to support ROIs
         if (to.empty()) to = emptyLike(from);
         return ref(to, ImageTypeSpec::isFixedPoint(from.dataType))->copyFrom(from);
     }
