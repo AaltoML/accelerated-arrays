@@ -83,18 +83,21 @@ public:
     }
 };
 
-class FrameBufferManager final : public Image::Factory {
-private:
+class FrameBufferManager {
+public:
     class Reference;
+
+private:
     std::mutex mutex;
     std::unordered_map<const Reference*, std::shared_ptr<FrameBuffer> > frameBuffers;
     std::unique_ptr<operations::Factory> converterFactory;
 
 public:
     Processor &processor;
+    Image::Factory &imageFactory;
 
-    FrameBufferManager(Processor &p)
-    : converterFactory(operations::createFactory(p)), processor(p) {}
+    FrameBufferManager(Processor &p, Image::Factory &imageFactory)
+    : converterFactory(operations::createFactory(p)), processor(p), imageFactory(imageFactory) {}
 
     Future enqueue(const Reference *ref, const std::function<void(FrameBuffer &)> &f) {
         return processor.enqueue([this, f, ref]() {
@@ -117,11 +120,13 @@ public:
         // the ownership here
         processor.enqueue([this, ref, builder]() {
             auto fb = builder();
-            {
+            if (fb) {
                 std::lock_guard<std::mutex> lock(mutex);
                 aa_assert(!frameBuffers.count(ref));
                 LOG_TRACE("frame buffer for reference %p set to %d", (void*)ref, fb->getId());
                 frameBuffers[ref] = fb;
+            } else {
+                log_warn("orphaned frame buffer reference");
             }
         });
     }
@@ -149,82 +154,89 @@ public:
         std::lock_guard<std::mutex> lock(mutex);
         return frameBuffers.at(ref);
     }
-
-    std::unique_ptr<Image> wrapTexture(int textureId, int w, int h, const ImageTypeSpec &spec) final {
-        return std::unique_ptr<Image>(new ExternalImage(w, h, textureId, spec));
-    }
-
-    std::unique_ptr<::accelerated::Image> create(int w, int h, int channels, ImageTypeSpec::DataType dtype) final;
-    std::unique_ptr<Image> wrapFrameBuffer(int frameBufferId, int w, int h, const ImageTypeSpec &spec) final;
-    std::unique_ptr<Image> wrapScreen(int w, int h) final;
-
-    ImageTypeSpec getSpec(int channels, ImageTypeSpec::DataType dtype) final {
-        return Image::getSpec(channels, dtype);
-    }
 };
 
 class FrameBufferManager::Reference : public ImplementationBase {
 private:
-    FrameBufferManager &manager;
+    std::weak_ptr<FrameBufferManager> manager;
     std::function<Future(std::uint8_t*)> readAdpater;
 
 public:
-    Reference(int w, int h, const ImageTypeSpec &spec, FrameBufferManager &m, std::unique_ptr<FrameBuffer> existing)
-    : ImplementationBase(w, h, spec), manager(m)
+    Reference(int w, int h, const ImageTypeSpec &spec, std::weak_ptr<FrameBufferManager> man, std::unique_ptr<FrameBuffer> existing)
+    : ImplementationBase(w, h, spec), manager(man)
     {
         ImageTypeSpec s = spec;
         std::shared_ptr<FrameBuffer> fb = std::move(existing);
+        auto m = manager.lock();
+        aa_assert(m);
         LOG_TRACE("created buffer reference %p", (void*)this);
-        manager.addFrameBuffer(this, [w, h, s, fb]() {
+        m->addFrameBuffer(this, [w, h, s, fb]() {
             if (fb) return fb;
             return std::shared_ptr<FrameBuffer>(FrameBuffer::create(w, h, s));
         });
     }
 
     // ROI
-    Reference(int x0, int y0, int w, int h, FrameBufferManager &m, Reference &existing)
-    : ImplementationBase(w, h, existing), manager(m)
+    Reference(int x0, int y0, int w, int h, std::weak_ptr<FrameBufferManager> man, Reference &existing)
+    : ImplementationBase(w, h, existing), manager(man)
     {
+        auto m = manager.lock();
+        aa_assert(m);
         LOG_TRACE("created buffer reference %p (ROI)", (void*)this);
-        manager.addFrameBuffer(this, [x0, y0, w, h, &m, &existing]() {
-            auto targetFB = m.getFrameBuffer(&existing);
-            aa_assert(targetFB && "failed to create ROI frame buffer, target does not exist");
-            return std::shared_ptr<FrameBuffer>(targetFB->createROI(x0, y0, w, h));
+        m->addFrameBuffer(this, [this, x0, y0, w, h, man, &existing]() -> std::shared_ptr<FrameBuffer> {
+            if (auto m = man.lock()) {
+                auto targetFB = m->getFrameBuffer(&existing);
+                aa_assert(targetFB && "failed to create ROI frame buffer, target does not exist");
+                return std::shared_ptr<FrameBuffer>(targetFB->createROI(x0, y0, w, h));
+            } else {
+                log_warn("orphaned frame buffer reference in ROI creation %p", (void*)this);
+                return {};
+            }
         });
     }
 
     ~Reference() {
-        LOG_TRACE("destroyed buffer reference %p", (void*)this);
-        manager.removeFrameBuffer(this);
+        if (auto m = manager.lock()) {
+            m->removeFrameBuffer(this);
+            LOG_TRACE("destroyed buffer reference %p", (void*)this);
+        } else {
+            log_warn("orphaned frame buffer reference %p", (void*)this);
+        }
     }
 
     int getTextureId() const final {
+        auto m = const_cast<Reference&>(*this).manager.lock();
+        aa_assert(m && "frame buffer manager destroyed");
         // TODO: not optimal
-        return const_cast<Reference&>(*this).manager.getFrameBuffer(this)->getTextureId();
+        return m->getFrameBuffer(this)->getTextureId();
     }
 
     Future readRaw(std::uint8_t *outputData) final {
+        auto m = manager.lock();
+        aa_assert(m && "frame buffer manager destroyed");
         if (!supportsDirectRead()) {
             if (!readAdpater) {
                 log_warn("frame buffer ref %p does not support direct read, trying to create adapter buffer", (void*)this);
                 readAdpater = createReadAdpater(
                     *this,
-                    manager.processor,
-                    manager,
-                    *manager.converterFactory);
+                    m->processor,
+                    m->imageFactory,
+                    *m->converterFactory);
             }
             return readAdpater(outputData);
         }
         LOG_TRACE("reading frame buffer reference %p", (void*)this);
-        return manager.enqueue(this, [outputData](FrameBuffer &fb) {
+        return m->enqueue(this, [outputData](FrameBuffer &fb) {
             fb.readPixels(outputData);
         });
     }
 
     Future writeRaw(const std::uint8_t *inputData) final {
         aa_assert(supportsDirectWrite());
+        auto m = manager.lock();
+        aa_assert(m && "frame buffer manager destroyed");
         LOG_TRACE("writing frame buffer reference %p", (void*)this);
-        return manager.enqueue(this, [inputData](FrameBuffer &fb) {
+        return m->enqueue(this, [inputData](FrameBuffer &fb) {
             fb.writePixels(inputData);
         });
     }
@@ -252,7 +264,9 @@ public:
     }
 
     FrameBuffer &getFrameBuffer() final {
-        auto fb = manager.getFrameBuffer(this);
+        auto m = manager.lock();
+        aa_assert(m && "frame buffer manager destroyed");
+        auto fb = m->getFrameBuffer(this);
         aa_assert(fb && "frame buffer object not created yet");
         return *fb;
     }
@@ -262,23 +276,39 @@ public:
     }
 };
 
-std::unique_ptr<::accelerated::Image> FrameBufferManager::create(int w, int h, int channels, ImageTypeSpec::DataType dtype) {
-    return std::unique_ptr<::accelerated::Image>(new FrameBufferManager::Reference(w, h,
-        Image::getSpec(channels, dtype, ImageTypeSpec::StorageType::GPU_OPENGL), *this, {}));
-}
+class GpuImageFactory final : public Image::Factory {
+private:
+    std::shared_ptr<FrameBufferManager> manager;
 
-std::unique_ptr<Image> FrameBufferManager::wrapFrameBuffer(int fboId, int w, int h, const ImageTypeSpec &spec) {
-    return std::unique_ptr<Image>(
-        new FrameBufferManager::Reference(w, h, spec, *this,
-            FrameBuffer::createReference(fboId, w, h, spec)));
-}
+public:
+    GpuImageFactory(Processor &p) : manager(new FrameBufferManager(p, *this)) {}
 
-std::unique_ptr<Image> FrameBufferManager::wrapScreen(int w, int h) {
-    auto spec = getScreenImageTypeSpec();
-    return std::unique_ptr<Image>(
-        new FrameBufferManager::Reference(w, h, *spec, *this,
-            FrameBuffer::createScreenReference(w, h)));
-}
+    std::unique_ptr<Image> wrapTexture(int textureId, int w, int h, const ImageTypeSpec &spec) final {
+        return std::unique_ptr<Image>(new ExternalImage(w, h, textureId, spec));
+    }
+
+    ImageTypeSpec getSpec(int channels, ImageTypeSpec::DataType dtype) final {
+        return Image::getSpec(channels, dtype);
+    }
+
+    std::unique_ptr<::accelerated::Image> create(int w, int h, int channels, ImageTypeSpec::DataType dtype) {
+        return std::unique_ptr<::accelerated::Image>(new FrameBufferManager::Reference(w, h,
+            Image::getSpec(channels, dtype, ImageTypeSpec::StorageType::GPU_OPENGL), manager, {}));
+    }
+
+    std::unique_ptr<Image> wrapFrameBuffer(int fboId, int w, int h, const ImageTypeSpec &spec) {
+        return std::unique_ptr<Image>(
+            new FrameBufferManager::Reference(w, h, spec, manager,
+                FrameBuffer::createReference(fboId, w, h, spec)));
+    }
+
+    std::unique_ptr<Image> wrapScreen(int w, int h) {
+        auto spec = getScreenImageTypeSpec();
+        return std::unique_ptr<Image>(
+            new FrameBufferManager::Reference(w, h, *spec, manager,
+                FrameBuffer::createScreenReference(w, h)));
+    }
+};
 }
 
 ImageTypeSpec Image::getSpec(int channels, DataType dtype, StorageType stype) {
@@ -301,7 +331,7 @@ Image &Image::castFrom(::accelerated::Image &image) {
 }
 
 std::unique_ptr<Image::Factory> Image::createFactory(Processor &p) {
-    return std::unique_ptr<Image::Factory>(new FrameBufferManager(p));
+    return std::unique_ptr<Image::Factory>(new GpuImageFactory(p));
 }
 
 Image::Image(int w, int h, const ImageTypeSpec &spec) :
