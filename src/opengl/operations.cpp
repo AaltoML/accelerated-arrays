@@ -351,25 +351,30 @@ Shader<Unary>::Builder fixedConvolution2D(const FixedConvolution2DSpec &spec, co
 }
 
 class GpuFactory : public Factory {
+public:
+    // used to enable convenient weak_ptr
+    struct Data {
+        Processor &processor;
+        bool debug = false;
+        Data(Processor &processor) : processor(processor) {}
+    };
 private:
-    Processor &processor;
-    bool debug = false;
+    std::shared_ptr<Data> data;
 
     class ShaderWrapper {
     private:
         typedef Shader<NAry> S;
-        Processor &processor;
-        const bool debug = false;
+        std::weak_ptr<Data> data;
         std::shared_ptr< S > shader;
 
     public:
-        ShaderWrapper(Processor &processor, bool debug)
-        : processor(processor), debug(debug)
-        {}
+        ShaderWrapper(std::weak_ptr<Data> data) : data(data) {}
 
         void initialize(std::unique_ptr<S> s) {
             std::shared_ptr<S> tmp = std::move(s);
-            if (debug) {
+            auto d = data.lock();
+            aa_assert(d);
+            if (d->debug) {
                 // TODO: hacky
                 auto &p = reinterpret_cast<GlslPipeline&>(*tmp->resources);
                 log_debug("vertex shader:\n%s", p.getVertexShaderSource().c_str());
@@ -381,10 +386,14 @@ private:
         ~ShaderWrapper() {
             std::shared_ptr<S> tmp = std::atomic_load(&shader);
             if (tmp) {
-                processor.enqueue([tmp]() {
-                    if (tmp->resources) tmp->resources->destroy();
-                    tmp->resources.reset();
-                });
+                if (auto d = data.lock()) {
+                    d->processor.enqueue([tmp]() {
+                        if (tmp->resources) tmp->resources->destroy();
+                        tmp->resources.reset();
+                    });
+                } else {
+                    log_warn("orphaned shader reference");
+                }
             }
         }
 
@@ -397,10 +406,10 @@ private:
     };
 
 public:
-    GpuFactory(Processor &processor) : processor(processor) {}
+    GpuFactory(Processor &processor) : data(new Data(processor)) {}
 
     void debugLogShaders(bool enabled) {
-        debug = enabled;
+        data->debug = enabled;
     }
 
     Function wrapShader(
@@ -411,11 +420,11 @@ public:
     };
 
     Function wrapNAry(const Shader<NAry>::Builder &builder) final {
-        std::shared_ptr<ShaderWrapper> wrapper(new ShaderWrapper(processor, debug));
-        processor.enqueue([builder, wrapper]() { wrapper->initialize(builder()); });
+        std::shared_ptr<ShaderWrapper> wrapper(new ShaderWrapper(data));
+        data->processor.enqueue([builder, wrapper]() { wrapper->initialize(builder()); });
         return ::accelerated::operations::sync::wrap<Image>([wrapper](Image **inputs, int nInputs, Image &output) {
             wrapper->get()(inputs, nInputs, output);
-        }, processor);
+        }, data->processor);
     }
 
     Function create(const FixedConvolution2DSpec &spec, const ImageTypeSpec &inSpec, const ImageTypeSpec &outSpec) final {
