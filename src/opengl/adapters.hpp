@@ -3,6 +3,10 @@
 #include <memory>
 #include <vector>
 
+#ifdef _WIN32
+    #include <windows.h>
+#endif
+
 #ifdef ACCELERATED_ARRAYS_USE_OPENGL_ES
     #include <GLES3/gl3.h>
     #include <GLES3/gl3ext.h>

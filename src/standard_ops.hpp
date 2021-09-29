@@ -3,6 +3,7 @@
 #include "function.hpp"
 #include "image.hpp"
 #include <vector>
+#include <string>
 
 namespace accelerated {
 namespace operations {
