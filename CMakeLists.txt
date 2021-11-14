@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 set(LIBNAME accelerated-arrays)
 project(${LIBNAME})
+set(PROJECT_VERSION 1.0.0)
 
 set(CMAKE_CXX_STANDARD 14)
 
@@ -56,6 +57,7 @@ endif()
 if (WITH_OPENGL)
   # TODO: iOS
   if (NOT ANDROID)
+    set(OpenGL_GL_PREFERENCE LEGACY)
     find_package(OpenGL REQUIRED)
   endif()
 
@@ -96,7 +98,11 @@ if (WITH_OPENGL)
     endif()
   else()
     if (NOT APPLE)
-      list(APPEND LIBRARY_DEPS GL)
+      if(ANDROID)
+        list(APPEND LIBRARY_DEPS GL)
+      else()
+        list(APPEND LIBRARY_DEPS ${OPENGL_LIBRARIES})
+      endif()
     endif()
   endif()
 endif()
@@ -125,8 +131,47 @@ endif()
 # ACCELERATED_ARRAYS_DODGY_READS
 # ACCELERATED_ARRAYS_MAX_COMPATIBILITY_READS
 
-install(TARGETS ${LIBNAME}
-  ARCHIVE DESTINATION lib
-  PUBLIC_HEADER DESTINATION include/${LIBNAME})
+install(TARGETS ${PROJECT_NAME}
+  EXPORT ${PROJECT_NAME}Targets
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/${LIBNAME}/${LIBNAME}ConfigVersion.cmake"
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY AnyNewerVersion
+)
+
+export(EXPORT ${PROJECT_NAME}Targets
+  FILE "${CMAKE_CURRENT_BINARY_DIR}/${LIBNAME}/${PROJECT_NAME}Targets.cmake"
+  NAMESPACE ${LIBNAME}::
+)
+configure_file(cmake/${PROJECT_NAME}Config.cmake
+  "${CMAKE_CURRENT_BINARY_DIR}/${LIBNAME}/${PROJECT_NAME}Config.cmake"
+  COPYONLY
+)
+
+set(ConfigPackageLocation lib/cmake/${LIBNAME})
+install(EXPORT ${PROJECT_NAME}Targets
+  FILE
+    ${PROJECT_NAME}Targets.cmake
+  NAMESPACE
+    ${LIBNAME}::
+  DESTINATION
+    ${ConfigPackageLocation}
+)
+install(
+  FILES
+    cmake/${PROJECT_NAME}Config.cmake
+    "${CMAKE_CURRENT_BINARY_DIR}/${LIBNAME}/${PROJECT_NAME}ConfigVersion.cmake"
+  DESTINATION
+    ${ConfigPackageLocation}
+  COMPONENT
+    Devel
+)
 
 add_subdirectory(test)
